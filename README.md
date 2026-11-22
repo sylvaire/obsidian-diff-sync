@@ -1,5 +1,7 @@
 # Diff Sync (WebDAV)
 
+Diff Sync (WebDAV) synchronizes an Obsidian vault across desktop devices using a WebDAV server. It transfers only changed blocks and saves conflict copies when both devices edit the same file. Configure your server URL and credentials in the plugin settings, then use the sync panel to start a sync.
+
 Obsidian 差分同步插件：通过 WebDAV 只传输**发生变化的数据块**，并保留冲突双方的内容。
 
 支持坚果云、Nextcloud、ownCloud、Synology、群晖、自建 WebDAV 等。

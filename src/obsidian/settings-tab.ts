@@ -15,7 +15,6 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		new Setting(containerEl).setName('Diff Sync (WebDAV)').setHeading();
 		containerEl.createEl('p', {
 			text:
 				'内容定义分块差分同步：只有变化的块会被传输。' +
