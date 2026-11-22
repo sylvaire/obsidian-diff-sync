@@ -1,4 +1,5 @@
 import { base64Encode } from './bytes';
+import { sleep } from './util';
 
 export interface WebDavConfig {
 	/** Collection URL, e.g. https://dav.jianguoyun.com/dav/obsidian-sync */
@@ -35,7 +36,7 @@ export interface HttpRequest {
  *
  * Obsidian's renderer applies CORS to plain `fetch`, which third-party WebDAV
  * servers do not satisfy. The plugin therefore injects a transport backed by
- * Obsidian's `requestUrl`; tests inject the fetch-based default.
+ * Obsidian's `requestUrl`; Node tests inject a fetch-based transport.
  */
 export type HttpTransport = (request: HttpRequest) => Promise<HttpResponse>;
 
@@ -69,29 +70,6 @@ const THROTTLE_RETRIES = 8;
 /** Modest pacing by default: cheap for fast servers, enough to avoid bursts. */
 const DEFAULT_MIN_INTERVAL_MS = 120;
 
-/** Default transport using `fetch`. Used by tests and by Node environments. */
-export const fetchTransport: HttpTransport = async (request) => {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), request.timeoutMs);
-	try {
-		const response = await fetch(request.url, {
-			method: request.method,
-			headers: request.headers,
-			body: request.body as BodyInit | undefined,
-			signal: controller.signal,
-			credentials: 'omit',
-		});
-		const headers: Record<string, string> = {};
-		response.headers.forEach((value, key) => {
-			headers[key.toLowerCase()] = value;
-		});
-		const bytes = new Uint8Array(await response.arrayBuffer());
-		return { status: response.status, headers, bytes };
-	} finally {
-		clearTimeout(timer);
-	}
-};
-
 export class WebDavClient {
 	private authHeader: string;
 	/** Set once a conditional PUT has been observed to work (or not). */
@@ -107,7 +85,7 @@ export class WebDavClient {
 
 	constructor(
 		private readonly config: WebDavConfig,
-		private readonly transport: HttpTransport = fetchTransport,
+		private readonly transport: HttpTransport,
 	) {
 		// RFC 7617: the credentials are sent as-is. Percent-encoding them (the
 		// reflex from URL building) breaks any username containing '@', which
@@ -138,7 +116,7 @@ export class WebDavClient {
 		const slot = Math.max(cooldown, this.nextSlot);
 		this.nextSlot = slot + (this.config.minRequestIntervalMs ?? DEFAULT_MIN_INTERVAL_MS);
 		const wait = slot - now;
-		if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+		if (wait > 0) await sleep(wait);
 	}
 
 	private async send(
@@ -201,7 +179,7 @@ export class WebDavClient {
 		const delay = throttled
 			? Math.min(20_000, 3_000 * attempt) + Math.random() * 1_000
 			: 300 * Math.pow(3, attempt - 1) + Math.random() * 250;
-		await new Promise((resolve) => setTimeout(resolve, delay));
+		await sleep(delay);
 	}
 
 	private noteThrottle(): void {

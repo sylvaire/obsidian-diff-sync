@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 /** Concurrency helper: run `fn` over items with at most `limit` in flight. */
 export async function mapLimit<T, R>(
 	items: readonly T[],
@@ -36,7 +38,7 @@ export function assertNotAborted(signal?: AbortSignal): void {
 }
 
 export function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+	return delay(ms);
 }
 
 export function errorMessage(error: unknown): string {

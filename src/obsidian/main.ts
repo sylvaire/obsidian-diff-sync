@@ -2,6 +2,7 @@ import {
 	App,
 	Modal,
 	Notice,
+	Platform,
 	Plugin,
 	Setting,
 	TAbstractFile,
@@ -42,7 +43,7 @@ export default class DiffSyncPlugin extends Plugin {
 	private abortController: AbortController | null = null;
 	private statusEl: HTMLElement | null = null;
 	private logLines: LogLine[] = [];
-	private eventTimer: ReturnType<typeof setTimeout> | null = null;
+	private eventTimer: number | null = null;
 	private lastResult: SyncResult | null = null;
 	private sessionPassphrase: string | null = null;
 	private panel: SyncPanelView | null = null;
@@ -118,7 +119,7 @@ export default class DiffSyncPlugin extends Plugin {
 
 	onunload(): void {
 		this.cancelSync();
-		if (this.eventTimer) clearTimeout(this.eventTimer);
+		if (this.eventTimer) window.clearTimeout(this.eventTimer);
 		this.statusEl?.remove();
 		this.statusEl = null;
 		this.panel = null;
@@ -237,12 +238,8 @@ export default class DiffSyncPlugin extends Plugin {
 
 			const { store, meta } = await this.connect();
 			const state = await this.readState(store.vaultId);
-			const excludeFilter = new PathFilter([
-				// The history folder's *contents* must be excluded too, so use `/**`.
-				`${HISTORY_DIR}/**`,
-				...this.settings.excludePatterns,
-			]);
-			const vault = new ObsidianVault(this.app, (path) => excludeFilter.excluded(path));
+			const isExcluded = this.createPathExclusion();
+			const vault = new ObsidianVault(this.app, isExcluded);
 
 			const result = await runSync(store, {
 				vault,
@@ -255,7 +252,7 @@ export default class DiffSyncPlugin extends Plugin {
 				cache: this.chunkCache,
 				collectGarbage: true,
 				allowMassDelete: this.settings.allowMassDelete,
-				isExcluded: (path) => excludeFilter.excluded(path),
+				isExcluded,
 				beforeOverwrite: this.settings.keepHistory
 					? (path, previous) => this.saveSnapshot(path, previous)
 					: undefined,
@@ -457,6 +454,15 @@ export default class DiffSyncPlugin extends Plugin {
 
 	// ------------------------------------------------------------------- state
 
+	private createPathExclusion(): (path: string) => boolean {
+		const configDir = normalizePath(this.app.vault.configDir);
+		const filter = new PathFilter(this.settings.excludePatterns);
+		return (path) =>
+			path === configDir || path.startsWith(`${configDir}/`) ||
+			path === HISTORY_DIR || path.startsWith(`${HISTORY_DIR}/`) ||
+			filter.excluded(path);
+	}
+
 	private pluginDir(): string {
 		return this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
 	}
@@ -552,10 +558,9 @@ export default class DiffSyncPlugin extends Plugin {
 		if (!this.settings.syncOnFileChange || this.syncing) return;
 		if (!(file instanceof TFile)) return;
 		const normalized = normalizePath(file.path);
-		if (normalized === HISTORY_DIR || normalized.startsWith(`${HISTORY_DIR}/`)) return;
-		if (new PathFilter(this.settings.excludePatterns).excluded(normalized)) return;
-		if (this.eventTimer) clearTimeout(this.eventTimer);
-		this.eventTimer = setTimeout(() => {
+		if (this.createPathExclusion()(normalized)) return;
+		if (this.eventTimer) window.clearTimeout(this.eventTimer);
+		this.eventTimer = window.setTimeout(() => {
 			this.eventTimer = null;
 			if (!this.syncing) void this.sync({ silent: true, triggered: '文件变更' });
 		}, this.settings.syncOnFileChangeDelayMs);
@@ -621,10 +626,9 @@ export default class DiffSyncPlugin extends Plugin {
 // ---------------------------------------------------------------------------
 
 function defaultDeviceName(): string {
-	const platform = `${navigator.platform ?? ''}`;
-	if (platform.includes('Win')) return 'windows';
-	if (platform.includes('Mac')) return 'mac';
-	if (platform.includes('Linux')) return 'linux';
+	if (Platform.isWin) return 'windows';
+	if (Platform.isMacOS) return 'mac';
+	if (Platform.isLinux) return 'linux';
 	return 'device';
 }
 
@@ -637,7 +641,7 @@ function randomId(): string {
 function toArrayBuffer(data: Uint8Array): ArrayBuffer {
 	return data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
 		? (data.buffer as ArrayBuffer)
-		: (data.slice().buffer as ArrayBuffer);
+		: data.slice().buffer;
 }
 
 function describeSyncError(error: unknown): string {
@@ -691,7 +695,7 @@ class PassphraseModal extends Modal {
 		}
 
 		this.errorEl = contentEl.createEl('p', { cls: 'mod-warning' });
-		this.errorEl.style.display = 'none';
+		this.errorEl.hidden = true;
 
 		const buttons = contentEl.createDiv({ cls: 'modal-button-container' });
 		buttons.createEl('button', { text: '取消' }).addEventListener('click', () => this.close());
@@ -716,7 +720,7 @@ class PassphraseModal extends Modal {
 	private showError(message: string): void {
 		if (!this.errorEl) return;
 		this.errorEl.setText(message);
-		this.errorEl.style.display = '';
+		this.errorEl.hidden = false;
 	}
 
 	onClose(): void {

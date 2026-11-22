@@ -115,6 +115,7 @@ const obsidianStub = {
 			this.containerEl = {};
 		}
 	},
+	Platform: { isWin: process.platform === 'win32', isMacOS: process.platform === 'darwin', isLinux: process.platform === 'linux' },
 	normalizePath: (p) => p.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+|\/+$/g, ''),
 	requestUrl: async (request) => {
 		const response = await fetch(request.url, {
@@ -239,7 +240,7 @@ function loadPlugin(app) {
 		id: 'diff-sync-webdav',
 		name: 'Diff Sync (WebDAV)',
 		version: '0.1.0',
-		minAppVersion: '1.6.6',
+		minAppVersion: '1.7.2',
 		description: 'e2e',
 		author: 'e2e',
 		dir: `${app.vault.configDir}/plugins/diff-sync-webdav`,
@@ -264,7 +265,10 @@ async function main() {
 		await fs.writeFile(path.join(vaultA, 'notes', 'big.md'), bigNote);
 		await fs.writeFile(path.join(vaultA, 'notes', 'small.md'), '# Small\n\nhello\n');
 
-		const pluginA = loadPlugin(makeApp(vaultA));
+		const configDir = '.custom-config';
+		await fs.mkdir(path.join(vaultA, configDir));
+		await fs.writeFile(path.join(vaultA, configDir, 'settings.json'), '{}');
+		const pluginA = loadPlugin(makeApp(vaultA, configDir));
 		await pluginA.onload();
 		Object.assign(pluginA.settings, {
 			serverUrl: server.url,
@@ -353,7 +357,7 @@ async function main() {
 		// --- state persisted per device ---
 		const stateA = JSON.parse(
 			await fs.readFile(
-				path.join(vaultA, '.obsidian', 'plugins', 'diff-sync-webdav', 'sync-state.json'),
+				path.join(vaultA, configDir, 'plugins', 'diff-sync-webdav', 'sync-state.json'),
 				'utf8',
 			),
 		);

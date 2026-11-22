@@ -55,7 +55,7 @@ class MemoryVault {
 	}
 }
 
-const client = new WebDavClient(CONFIG);
+const client = new WebDavClient(CONFIG, fetchTransport);
 let failures = 0;
 async function step(name, fn) {
 	const t = Date.now();

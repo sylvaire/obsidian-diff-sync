@@ -29,5 +29,5 @@ export const obsidianTransport: HttpTransport = async (request): Promise<HttpRes
 function copyToArrayBuffer(data: Uint8Array): ArrayBuffer {
 	return data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
 		? (data.buffer as ArrayBuffer)
-		: (data.slice().buffer as ArrayBuffer);
+		: data.slice().buffer;
 }

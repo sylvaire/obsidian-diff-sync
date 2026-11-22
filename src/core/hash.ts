@@ -5,7 +5,7 @@ const HASH_BYTES = 16;
 export const HASH_HEX_LENGTH = HASH_BYTES * 2;
 
 function subtle(): SubtleCrypto {
-	const c = (globalThis as { crypto?: Crypto }).crypto;
+	const c = typeof crypto === 'undefined' ? undefined : crypto;
 	if (!c || !c.subtle) throw new Error('WebCrypto is not available in this environment');
 	return c.subtle;
 }
@@ -18,7 +18,7 @@ function toBufferSource(bytes: Uint8Array): ArrayBuffer {
 	) {
 		return bytes.buffer;
 	}
-	return bytes.slice().buffer as ArrayBuffer;
+	return bytes.slice().buffer;
 }
 
 export async function sha256(bytes: Uint8Array): Promise<Uint8Array> {

@@ -35,7 +35,7 @@ export function joinPath(...parts: readonly string[]): string {
 export function sanitizeSegment(input: string): string {
 	return (
 		input
-			// eslint-disable-next-line no-control-regex
+			// eslint-disable-next-line no-control-regex -- Control characters are invalid in portable filenames.
 			.replace(/[\u0000-\u001f<>:"/\\|?*]/g, '-')
 			.replace(/\s+/g, ' ')
 			.trim()

@@ -1,6 +1,6 @@
 import esbuild from 'esbuild';
 import process from 'node:process';
-import builtins from 'builtin-modules';
+import { builtinModules } from 'node:module';
 
 const watch = process.argv.includes('--watch');
 const testBuild = process.argv.includes('--test');
@@ -35,7 +35,8 @@ const plugin = {
 		'@lezer/common',
 		'@lezer/highlight',
 		'@lezer/lr',
-		...builtins,
+		...builtinModules,
+		'node:*',
 	],
 };
 

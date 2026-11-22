@@ -15,7 +15,7 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Diff Sync (WebDAV)' });
+		new Setting(containerEl).setName('Diff Sync (WebDAV)').setHeading();
 		containerEl.createEl('p', {
 			text:
 				'内容定义分块差分同步：只有变化的块会被传输。' +
@@ -214,8 +214,7 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 			.setDesc('一行一个 glob，支持 ** 匹配多级目录。')
 			.addTextArea((area) => {
 				area.inputEl.rows = 8;
-				area.inputEl.style.width = '100%';
-				area.inputEl.style.fontFamily = 'monospace';
+				area.inputEl.classList.add('diff-sync-excludes');
 				area.setValue(this.plugin.settings.excludePatterns.join('\n')).onChange(async (value) => {
 					this.plugin.settings.excludePatterns = value
 						.split('\n')

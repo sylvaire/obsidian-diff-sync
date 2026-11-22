@@ -239,6 +239,7 @@ const obsidianStub = {
 			this.containerEl = makeEl();
 		}
 	},
+	Platform: { isWin: process.platform === 'win32', isMacOS: process.platform === 'darwin', isLinux: process.platform === 'linux' },
 	normalizePath: (p) => p.replace(/\/+/g, '/').replace(/^\/|\/$/g, ''),
 	requestUrl: async () => ({ status: 200, headers: {}, arrayBuffer: new ArrayBuffer(0) }),
 	debounce: (fn) => fn,

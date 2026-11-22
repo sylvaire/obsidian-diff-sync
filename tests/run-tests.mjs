@@ -1,3 +1,4 @@
+import { fetchTransport } from './fetch-transport.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -139,7 +140,7 @@ async function connect(server, { vaultId = 'vault-1', key = null, meta = null } 
 		username: 'u',
 		password: 'p',
 		rootDir: 'sync',
-	});
+	}, fetchTransport);
 	const existing = meta ?? (await RemoteStore.readMeta(client));
 	const remoteMeta =
 		existing ??
@@ -568,7 +569,7 @@ test('sync: encryption hides content from the server', async () => {
 	await a.writeAt('secret.md', secret, Date.now());
 
 	const { config, key } = await buildEncryptionConfig('correct horse battery staple', 1000);
-	const client = new WebDavClient({ baseUrl: server.url, username: 'u', password: 'p', rootDir: 'sync' });
+	const client = new WebDavClient({ baseUrl: server.url, username: 'u', password: 'p', rootDir: 'sync' }, fetchTransport);
 	await RemoteStore.writeMeta(client, {
 		v: 1,
 		vaultId: 'vault-10',

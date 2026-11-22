@@ -10,6 +10,7 @@ if (!process.env.JIANGUOYUN_USERNAME || !process.env.JIANGUOYUN_PASSWORD) {
  *
  * Everything is written under a dedicated test folder and removed afterwards.
  */
+import { fetchTransport } from './fetch-transport.mjs';
 import { createHash } from 'node:crypto';
 import {
 	WebDavClient,
@@ -81,7 +82,7 @@ class MemoryVault {
 }
 
 function makeClient(overrides = {}) {
-	return new WebDavClient({ ...CONFIG, ...overrides });
+	return new WebDavClient({ ...CONFIG, ...overrides }, fetchTransport);
 }
 
 async function main() {

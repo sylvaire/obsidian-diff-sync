@@ -177,3 +177,8 @@
 .diff-sync-panel__hint.is-hidden {
 	display: none;
 }
+
+.diff-sync-excludes {
+	width: 100%;
+	font-family: monospace;
+}
