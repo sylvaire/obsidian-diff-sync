@@ -1,0 +1,9 @@
+{
+  "id": "diff-sync-webdav",
+  "name": "Diff Sync (WebDAV)",
+  "version": "0.1.0",
+  "minAppVersion": "1.6.6",
+  "description": "Content-defined-chunk differential sync over WebDAV. Only changed blocks are transferred; conflicts are kept as copies.",
+  "author": "diff-sync",
+  "isDesktopOnly": true
+}

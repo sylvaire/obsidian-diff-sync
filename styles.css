@@ -1,0 +1,179 @@
+/* Diff Sync sidebar panel */
+
+.diff-sync-panel {
+	padding: 12px 14px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.diff-sync-panel__heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 600;
+	font-size: 1.05em;
+	color: var(--text-normal);
+}
+
+.diff-sync-panel__icon {
+	display: inline-flex;
+	color: var(--text-muted);
+}
+
+.diff-sync-panel__actions {
+	display: flex;
+	gap: 8px;
+	align-items: stretch;
+}
+
+.diff-sync-panel__sync {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 8px 12px;
+	font-weight: 600;
+}
+
+.diff-sync-panel__sync:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.diff-sync-panel__btn-icon {
+	display: inline-flex;
+}
+
+.diff-sync-panel__sync .svg-icon {
+	width: 15px;
+	height: 15px;
+}
+
+.diff-sync-panel__cancel {
+	flex: 0 0 auto;
+	padding: 8px 12px;
+}
+
+.diff-sync-panel__cancel.is-hidden {
+	display: none;
+}
+
+.diff-sync-panel__status {
+	font-size: 0.92em;
+	color: var(--text-normal);
+	min-height: 1.2em;
+	word-break: break-word;
+}
+
+.diff-sync-panel__detail {
+	font-size: 0.82em;
+	color: var(--text-muted);
+	min-height: 1em;
+	word-break: break-all;
+}
+
+/* Thin progress bar; stays invisible until a sync reports progress. */
+.diff-sync-panel__progress {
+	height: 3px;
+	border-radius: 2px;
+	background: var(--background-modifier-border);
+	overflow: hidden;
+}
+
+.diff-sync-panel__progress-fill {
+	height: 100%;
+	width: 0;
+	background: var(--interactive-accent);
+	transition: width 120ms linear;
+}
+
+.diff-sync-panel__progress-fill.is-indeterminate {
+	width: 0;
+}
+
+.diff-sync-panel__stats {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: 10px;
+}
+
+.diff-sync-panel__table {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	font-size: 0.88em;
+}
+
+.diff-sync-panel__row {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.diff-sync-panel__label {
+	color: var(--text-muted);
+}
+
+.diff-sync-panel__value {
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+
+.diff-sync-panel__muted {
+	color: var(--text-faint);
+	font-size: 0.88em;
+}
+
+.diff-sync-panel__conflicts,
+.diff-sync-panel__errors {
+	font-size: 0.84em;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.diff-sync-panel__conflict-item {
+	color: var(--text-warning);
+	word-break: break-all;
+}
+
+.diff-sync-panel__error-item {
+	color: var(--text-error);
+	word-break: break-all;
+}
+
+.diff-sync-panel__footer {
+	display: flex;
+	gap: 6px;
+	margin-top: auto;
+	padding-top: 10px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.diff-sync-panel__link {
+	flex: 1;
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 0.85em;
+	padding: 5px 8px;
+}
+
+.diff-sync-panel__link:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.diff-sync-panel__hint {
+	font-size: 0.84em;
+	color: var(--text-warning);
+	word-break: break-word;
+}
+
+.diff-sync-panel__hint.is-hidden {
+	display: none;
+}
