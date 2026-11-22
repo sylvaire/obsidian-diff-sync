@@ -170,7 +170,7 @@ export default class DiffSyncPlugin extends Plugin {
 	}
 
 	showLog(): void {
-		const lines = this.logLines.slice(-150);
+		const lines = this.getLog().slice(-150);
 		if (lines.length === 0) {
 			new Notice('暂无日志');
 			return;
@@ -573,14 +573,12 @@ export default class DiffSyncPlugin extends Plugin {
 		if (this.logLines.length > MAX_LOG_LINES) {
 			this.logLines.splice(0, this.logLines.length - MAX_LOG_LINES);
 		}
-		if (level === 'error') console.error(`[diff-sync] ${message}`);
-		else if (level === 'warn' || this.settings.verboseLogging) {
-			console.log(`[diff-sync] ${message}`);
-		}
 	}
 
 	getLog(): readonly LogLine[] {
-		return this.logLines;
+		return this.settings.verboseLogging
+			? this.logLines
+			: this.logLines.filter((line) => line.level !== 'info');
 	}
 
 	lastSyncResult(): SyncResult | null {

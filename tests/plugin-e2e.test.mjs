@@ -240,7 +240,7 @@ function loadPlugin(app) {
 		id: 'diff-sync-webdav',
 		name: 'Diff Sync (WebDAV)',
 		version: '0.1.0',
-		minAppVersion: '1.7.2',
+		minAppVersion: '1.13.0',
 		description: 'e2e',
 		author: 'e2e',
 		dir: `${app.vault.configDir}/plugins/diff-sync-webdav`,

@@ -157,7 +157,7 @@ class StubSetting {
 			setCta() {
 				return this;
 			},
-			setWarning() {
+			setDestructive() {
 				return this;
 			},
 			setDisabled() {
@@ -318,10 +318,32 @@ assert.ok(registered.ribbonIcons.length === 1, 'one ribbon icon registered');
 assert.equal(plugin.settings.remoteDir, 'diff-sync', 'defaults applied');
 assert.ok(plugin.settings.deviceName.length > 0, 'device name defaulted');
 
-// Settings tab must render without throwing.
+// Exercise the declarative settings definitions and their custom rows.
 const tab = registered.settingTabs[0];
-tab.display();
-assert.ok(tab.containerEl.children.length > 0, 'settings tab rendered content');
+tab.refreshDomState = () => {};
+const groups = tab.getSettingDefinitions();
+assert.equal(groups.length, 6);
+const rows = groups.flatMap((group) => group.items);
+for (const definition of rows) {
+	assert.ok(definition.name, 'each setting has a search label');
+	if (definition.visible && !definition.visible()) continue;
+	const row = new StubSetting(tab.containerEl);
+	row.descEl = makeEl();
+	definition.render?.(row);
+}
+
+const delayRow = rows.find((row) => row.name === '变更合并延迟（秒）');
+assert.equal(delayRow.visible(), false);
+await tab.setControlValue('syncOnFileChange', true);
+assert.equal(delayRow.visible(), true);
+assert.equal(plugin.data.syncOnFileChange, true);
+await tab.setControlValue('syncOnFileChange', false);
+
+plugin.log('normal sync event');
+plugin.log('sync warning', 'warn');
+assert.deepEqual(plugin.getLog().map(({ level }) => level), ['warn']);
+await tab.setControlValue('verboseLogging', true);
+assert.deepEqual(plugin.getLog().map(({ level }) => level), ['info', 'warn']);
 
 // Commands must be callable without crashing on an unconfigured plugin
 // (they should show a Notice rather than throw).
