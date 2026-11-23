@@ -324,6 +324,13 @@ tab.refreshDomState = () => {};
 const groups = tab.getSettingDefinitions();
 assert.equal(groups.length, 6);
 const rows = groups.flatMap((group) => group.items);
+const cache = plugin.getCache();
+const originalSize = cache.size;
+let cacheScans = 0;
+cache.size = async () => {
+	cacheScans++;
+	return { count: 0, bytes: 0 };
+};
 for (const definition of rows) {
 	assert.ok(definition.name, 'each setting has a search label');
 	if (definition.visible && !definition.visible()) continue;
@@ -331,6 +338,8 @@ for (const definition of rows) {
 	row.descEl = makeEl();
 	definition.render?.(row);
 }
+assert.equal(cacheScans, 0, 'opening settings does not scan the chunk cache');
+cache.size = originalSize;
 
 const delayRow = rows.find((row) => row.name === '变更合并延迟（秒）');
 assert.equal(delayRow.visible(), false);

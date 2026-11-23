@@ -214,12 +214,21 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 				items: [
 					{
 						name: '本地分块缓存',
-						desc: '加载中…',
+						desc: '按需统计缓存文件的数量和大小。',
 						render: (row) => {
 							const cache = this.plugin.getCache();
-							void cache.size()
-								.then(({ count, bytes }) => row.setDesc(`${count} 个分块，占用 ${formatBytes(bytes)}`))
-								.catch(() => row.setDesc('无法读取缓存信息'));
+							row.addButton((button) => button.setButtonText('查看用量').onClick(async () => {
+								button.setDisabled(true);
+								row.setDesc('正在统计缓存…');
+								try {
+									const { count, bytes } = await cache.size();
+									row.setDesc(`${count} 个分块，占用 ${formatBytes(bytes)}`);
+								} catch {
+									row.setDesc('无法读取缓存信息');
+								} finally {
+									button.setDisabled(false);
+								}
+							}));
 							row.addButton((button) => button.setButtonText('清空缓存').onClick(async () => {
 								await cache.clear();
 								new Notice('已清空本地分块缓存');
