@@ -31,17 +31,27 @@ export function globToRegExp(pattern: string): RegExp {
 		}
 	}
 	source += '$';
-	return new RegExp(source);
+	return new RegExp(source, 's');
 }
 
 export class PathFilter {
 	private readonly matchers: RegExp[];
+	private readonly subtreeMatchers: RegExp[];
 
 	constructor(patterns: readonly string[]) {
-		this.matchers = patterns
+		const active = patterns
 			.map((p) => p.trim())
-			.filter((p) => p.length > 0 && !p.startsWith('#'))
+			.filter((p) => p.length > 0 && !p.startsWith('#'));
+		this.matchers = active.map(globToRegExp);
+		this.subtreeMatchers = active
+			.map((p) => p.replace(/\\/g, '/'))
+			.filter((p) => p.endsWith('/**'))
 			.map(globToRegExp);
+	}
+
+	/** Match directory trees explicitly excluded by a trailing double star. */
+	excludedDirectory(path: string): boolean {
+		return this.subtreeMatchers.some((re) => re.test(`${path}/`));
 	}
 
 	/** True when the path is excluded by any pattern. */

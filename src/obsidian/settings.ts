@@ -1,5 +1,6 @@
 import { DEFAULT_CHUNKER, ChunkerConfig } from '../core/chunker';
 import { DEFAULT_EXCLUDE_PATTERNS } from '../core/glob';
+import type { ConflictStrategy } from '../core/types';
 import { DEFAULT_RETENTION } from '../core/history';
 
 export interface SyncSettings {
@@ -25,6 +26,7 @@ export interface SyncSettings {
 	chunkSizeKb: number;
 	verifyDownloads: boolean;
 	allowMassDelete: boolean;
+	conflictStrategy: ConflictStrategy;
 	maxFileSizeKb: number;
 
 	/** Keep local snapshots before overwriting on download. */
@@ -60,6 +62,7 @@ export const DEFAULT_SETTINGS: SyncSettings = {
 	chunkSizeKb: 8,
 	verifyDownloads: true,
 	allowMassDelete: false,
+	conflictStrategy: 'time',
 	maxFileSizeKb: 50 * 1024,
 
 	keepHistory: true,
@@ -91,6 +94,7 @@ export function normalizeSettings(raw: unknown): SyncSettings {
 	settings.password = str(input.password, settings.password);
 	settings.remoteDir = str(input.remoteDir, settings.remoteDir).trim() || 'diff-sync';
 
+	settings.conflictStrategy = input.conflictStrategy === 'size' ? 'size' : 'time';
 	settings.encryptionEnabled = bool(input.encryptionEnabled, settings.encryptionEnabled);
 	settings.encryptionSalt = str(input.encryptionSalt, '');
 	settings.encryptionIterations = num(input.encryptionIterations, 0, 0, 2_000_000);

@@ -169,6 +169,7 @@ async function sync(store, vault, state, overrides = {}) {
 		allowMassDelete: overrides.allowMassDelete ?? true,
 		now: overrides.now,
 		isExcluded: overrides.isExcluded,
+		conflictStrategy: overrides.conflictStrategy,
 	});
 }
 
@@ -255,6 +256,10 @@ test('glob: patterns match vault paths', async () => {
 	assert.ok(filter.excluded('.obsidian/plugins/x/main.js'));
 	assert.ok(filter.excluded('a/b.tmp'));
 	assert.ok(!filter.excluded('notes/a.md'));
+	assert.ok(filter.excludedDirectory('.obsidian'));
+	assert.ok(filter.excludedDirectory('.obsidian/plugins'));
+	assert.ok(!filter.excludedDirectory('notes/archive.tmp'));
+	assert.ok(new PF(['notes/**/private/**']).excludedDirectory('notes/deep/private'));
 });
 
 test('paths: helpers and conflict copy naming', async () => {
@@ -520,6 +525,35 @@ test('sync: simultaneous edit creates a conflict copy, no data loss', async () =
 	const aCopy = (await a.paths()).find((p) => p.includes('.conflict-'));
 	assert.ok(aCopy, 'conflict copy propagated to A');
 	assert.equal(await a.readText(aCopy), 'A version\n');
+});
+
+test('sync: size strategy keeps the larger file and uses time for equal sizes', async () => {
+	const { server } = await makeServer();
+	const a = new DiskVault(await makeTmp('vault-size-a'));
+	const b = new DiskVault(await makeTmp('vault-size-b'));
+	const base = Date.now() - 20_000;
+	const cases = [
+		{ path: 'remote-larger.md', remote: 'old but longer', local: 'new', winner: 'remote' },
+		{ path: 'local-larger.md', remote: 'new', local: 'old but longer', winner: 'local' },
+		{ path: 'equal-size.md', remote: 'AAAA', local: 'BBBB', winner: 'remote' },
+	];
+	for (const entry of cases) {
+		const remoteIsNewer = entry.path !== 'remote-larger.md';
+		await a.writeAt(entry.path, entry.remote, base + (remoteIsNewer ? 5_000 : 0));
+		await b.writeAt(entry.path, entry.local, base + (remoteIsNewer ? 0 : 5_000));
+	}
+	const { store } = await connect(server, { vaultId: 'vault-size' });
+	await sync(store, a, newState('vault-size'));
+	const result = await sync(store, b, newState('vault-size'), { conflictStrategy: 'size' });
+	assert.equal(result.summary.conflicts, cases.length);
+	for (const entry of cases) {
+		assert.equal(await b.readText(entry.path), entry[entry.winner]);
+		const copy = result.summary.conflictPaths.find((path) =>
+			path.startsWith(entry.path.replace(/\.md$/, '.conflict-')),
+		);
+		assert.ok(copy, `conflict copy for ${entry.path}`);
+		assert.equal(await b.readText(copy), entry[entry.winner === 'remote' ? 'local' : 'remote']);
+	}
 });
 
 test('sync: local edit vs remote delete resurrects the file', async () => {

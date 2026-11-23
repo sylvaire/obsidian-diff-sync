@@ -268,7 +268,17 @@ async function main() {
 		const configDir = '.custom-config';
 		await fs.mkdir(path.join(vaultA, configDir));
 		await fs.writeFile(path.join(vaultA, configDir, 'settings.json'), '{}');
-		const pluginA = loadPlugin(makeApp(vaultA, configDir));
+		const appA = makeApp(vaultA, configDir);
+		const adapter = appA.vault.adapter;
+		const list = adapter.list.bind(adapter);
+		const scannedDirectories = [];
+		adapter.list = (directory) => {
+			scannedDirectories.push(directory);
+			return list(directory);
+		};
+		await fs.mkdir(path.join(vaultA, 'excluded', 'nested'), { recursive: true });
+		await fs.writeFile(path.join(vaultA, 'excluded', 'nested', 'ignored.md'), 'excluded');
+		const pluginA = loadPlugin(appA);
 		await pluginA.onload();
 		Object.assign(pluginA.settings, {
 			serverUrl: server.url,
@@ -278,6 +288,7 @@ async function main() {
 			autoSyncOnStart: false,
 			autoSyncIntervalMinutes: 0,
 			syncOnFileChange: false,
+			excludePatterns: ['excluded/**'],
 		});
 		await pluginA.sync();
 
@@ -285,6 +296,8 @@ async function main() {
 		assert.ok(resultA, 'device A produced a sync result');
 		assert.equal(resultA.summary.errors.length, 0, `no errors: ${resultA.summary.errors}`);
 		assert.equal(resultA.summary.uploadedFiles, 2, 'uploaded both notes');
+		assert.ok(!scannedDirectories.includes(configDir), 'configuration subtree was not traversed');
+		assert.ok(!scannedDirectories.includes('excluded'), 'user-excluded subtree was not traversed');
 
 		// --- device B: bootstrap from the same remote ---
 		const pluginB = loadPlugin(makeApp(vaultB));

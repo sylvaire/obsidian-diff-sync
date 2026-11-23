@@ -202,7 +202,7 @@ function planActions(ctx: EngineContext): Action[] {
 					ctx.state.files[path] = stateEntry(local.hash, local.size, local.mtime, local.chunkIds);
 					ctx.summary.skippedFiles++;
 				} else {
-					actions.push(conflictAction(path, local, remote));
+					actions.push(conflictAction(path, local, remote, ctx.options.conflictStrategy));
 				}
 			}
 			continue;
@@ -255,17 +255,24 @@ function planActions(ctx: EngineContext): Action[] {
 			ctx.state.files[path] = stateEntry(local.hash, local.size, local.mtime, local.chunkIds);
 			ctx.summary.skippedFiles++;
 		} else {
-			actions.push(conflictAction(path, local, remote));
+			actions.push(conflictAction(path, local, remote, ctx.options.conflictStrategy));
 		}
 	}
 
 	return actions;
 }
 
-/** Newest write wins; the losing version is preserved as a copy. */
-function conflictAction(path: string, local: ScannedLocalFile, remote: RemoteFileLive): Action {
-	const remoteIsNewer = remote.m - local.mtime > CLOCK_SKEW_MS;
-	return remoteIsNewer
+/** Choose the original filename's contents and preserve the other version as a copy. */
+function conflictAction(
+	path: string,
+	local: ScannedLocalFile,
+	remote: RemoteFileLive,
+	strategy: SyncEngineOptions['conflictStrategy'],
+): Action {
+	const remoteWins = strategy === 'size' && remote.s !== local.size
+		? remote.s > local.size
+		: remote.m - local.mtime > CLOCK_SKEW_MS;
+	return remoteWins
 		? { kind: 'conflict-remote', path, entry: remote }
 		: { kind: 'conflict-local', path, entry: remote };
 }

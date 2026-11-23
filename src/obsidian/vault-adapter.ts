@@ -1,5 +1,6 @@
 import { App, DataAdapter, normalizePath, TFile } from 'obsidian';
 import { LocalFileInfo, LocalVault } from '../core/types';
+import { assertNotAborted } from '../core/util';
 
 /**
  * `LocalVault` over the Obsidian vault adapter.
@@ -11,6 +12,8 @@ export class ObsidianVault implements LocalVault {
 	constructor(
 		private readonly app: App,
 		private readonly excluded: (path: string) => boolean,
+		private readonly excludedDirectory: (path: string) => boolean,
+		private readonly signal: AbortSignal,
 	) {}
 
 	private get adapter(): DataAdapter {
@@ -21,11 +24,14 @@ export class ObsidianVault implements LocalVault {
 		const files: LocalFileInfo[] = [];
 
 		const walk = async (dir: string): Promise<void> => {
+			assertNotAborted(this.signal);
 			const listing = await this.adapter.list(dir);
 			for (const folder of listing.folders) {
+				if (this.excludedDirectory(normalizePath(folder))) continue;
 				await walk(folder);
 			}
 			for (const file of listing.files) {
+				assertNotAborted(this.signal);
 				const rel = normalizePath(file);
 				if (this.excluded(rel)) continue;
 				const stat = await this.adapter.stat(rel);

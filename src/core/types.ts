@@ -69,6 +69,8 @@ export interface ChunkCache {
 	list?(): Promise<string[]>;
 }
 
+export type ConflictStrategy = 'time' | 'size';
+
 export interface SyncEngineOptions {
 	vault: LocalVault;
 	/** Merge base from the previous successful sync, keyed by path. */
@@ -76,6 +78,7 @@ export interface SyncEngineOptions {
 	/** Vault id that `stateFiles` belongs to; guards against stale state. */
 	stateVaultId?: string;
 	deviceName: string;
+	conflictStrategy?: ConflictStrategy;
 	concurrency: number;
 	chunker?: ChunkerConfig;
 	/** Ignore mtime/size shortcuts and hash everything (used by "full rescan"). */

@@ -324,6 +324,13 @@ tab.refreshDomState = () => {};
 const groups = tab.getSettingDefinitions();
 assert.equal(groups.length, 6);
 const rows = groups.flatMap((group) => group.items);
+const conflictRow = rows.find((row) => row.control?.key === 'conflictStrategy');
+assert.deepEqual(Object.keys(conflictRow.control.options), ['time', 'size']);
+assert.equal(plugin.settings.conflictStrategy, 'time');
+await tab.setControlValue('conflictStrategy', 'size');
+assert.equal(plugin.data.conflictStrategy, 'size');
+await tab.setControlValue('conflictStrategy', 'invalid');
+assert.equal(plugin.settings.conflictStrategy, 'size');
 const cache = plugin.getCache();
 const originalSize = cache.size;
 let cacheScans = 0;
@@ -353,6 +360,8 @@ plugin.log('sync warning', 'warn');
 assert.deepEqual(plugin.getLog().map(({ level }) => level), ['warn']);
 await tab.setControlValue('verboseLogging', true);
 assert.deepEqual(plugin.getLog().map(({ level }) => level), ['info', 'warn']);
+await plugin.loadSettings();
+assert.equal(plugin.settings.conflictStrategy, 'size');
 
 // Commands must be callable without crashing on an unconfigured plugin
 // (they should show a Notice rather than throw).

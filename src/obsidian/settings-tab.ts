@@ -166,6 +166,15 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 				heading: '高级',
 				items: [
 					{
+						name: '冲突覆盖策略',
+						desc: '决定哪个版本沿用原文件名，另一份会保存为冲突副本。按大小覆盖时，同样大小按时间判断。',
+						control: {
+							type: 'dropdown',
+							key: 'conflictStrategy',
+							options: { time: '按时间覆盖', size: '按大小覆盖（较大优先）' },
+						},
+					},
+					{
 						name: '并发请求数',
 						desc: '同时下载或上传的分块数，坚果云建议不超过 4。',
 						control: { type: 'slider', key: 'requestConcurrency', min: 1, max: 12, step: 1 },
@@ -284,6 +293,10 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 	async setControlValue(key: string, value: unknown): Promise<void> {
 		const settings = this.plugin.settings;
 		switch (key) {
+			case 'conflictStrategy':
+				if (value !== 'time' && value !== 'size') return;
+				settings.conflictStrategy = value;
+				break;
 			case 'username':
 				if (typeof value !== 'string') return;
 				settings.username = value;

@@ -29,6 +29,7 @@ import { ObsidianVault } from './vault-adapter';
 
 const STATE_FILE = 'sync-state.json';
 const MAX_LOG_LINES = 400;
+const PROGRESS_REFRESH_MS = 100;
 
 export interface LogLine {
 	at: number;
@@ -230,6 +231,8 @@ export default class DiffSyncPlugin extends Plugin {
 		this.abortController = new AbortController();
 		const controller = this.abortController;
 		const startedAt = Date.now();
+		let lastProgressAt = -Infinity;
+		let lastPhase: SyncProgress['phase'] | undefined;
 
 		try {
 			this.log(`开始同步${options.triggered ? `（${options.triggered}）` : ''}`);
@@ -238,8 +241,8 @@ export default class DiffSyncPlugin extends Plugin {
 
 			const { store, meta } = await this.connect();
 			const state = await this.readState(store.vaultId);
-			const isExcluded = this.createPathExclusion();
-			const vault = new ObsidianVault(this.app, isExcluded);
+			const { isExcluded, isDirectoryExcluded } = this.createPathExclusion();
+			const vault = new ObsidianVault(this.app, isExcluded, isDirectoryExcluded, controller.signal);
 
 			const result = await runSync(store, {
 				vault,
@@ -252,12 +255,20 @@ export default class DiffSyncPlugin extends Plugin {
 				cache: this.chunkCache,
 				collectGarbage: true,
 				allowMassDelete: this.settings.allowMassDelete,
+				conflictStrategy: this.settings.conflictStrategy,
 				isExcluded,
 				beforeOverwrite: this.settings.keepHistory
 					? (path, previous) => this.saveSnapshot(path, previous)
 					: undefined,
 				signal: controller.signal,
-				onProgress: (progress) => this.onProgress(progress),
+				onProgress: (progress) => {
+					const now = performance.now();
+					const completed = progress.total > 0 && progress.current >= progress.total;
+					if (progress.phase === lastPhase && !completed && now - lastProgressAt < PROGRESS_REFRESH_MS) return;
+					lastPhase = progress.phase;
+					lastProgressAt = now;
+					this.onProgress(progress);
+				},
 				log: (message, level) => this.log(message, level),
 			});
 
@@ -454,13 +465,19 @@ export default class DiffSyncPlugin extends Plugin {
 
 	// ------------------------------------------------------------------- state
 
-	private createPathExclusion(): (path: string) => boolean {
+	private createPathExclusion(): {
+		isExcluded: (path: string) => boolean;
+		isDirectoryExcluded: (path: string) => boolean;
+	} {
 		const configDir = normalizePath(this.app.vault.configDir);
 		const filter = new PathFilter(this.settings.excludePatterns);
-		return (path) =>
+		const isInternal = (path: string) =>
 			path === configDir || path.startsWith(`${configDir}/`) ||
-			path === HISTORY_DIR || path.startsWith(`${HISTORY_DIR}/`) ||
-			filter.excluded(path);
+			path === HISTORY_DIR || path.startsWith(`${HISTORY_DIR}/`);
+		return {
+			isExcluded: (path) => isInternal(path) || filter.excluded(path),
+			isDirectoryExcluded: (path) => isInternal(path) || filter.excludedDirectory(path),
+		};
 	}
 
 	private pluginDir(): string {
@@ -558,7 +575,7 @@ export default class DiffSyncPlugin extends Plugin {
 		if (!this.settings.syncOnFileChange || this.syncing) return;
 		if (!(file instanceof TFile)) return;
 		const normalized = normalizePath(file.path);
-		if (this.createPathExclusion()(normalized)) return;
+		if (this.createPathExclusion().isExcluded(normalized)) return;
 		if (this.eventTimer) window.clearTimeout(this.eventTimer);
 		this.eventTimer = window.setTimeout(() => {
 			this.eventTimer = null;
