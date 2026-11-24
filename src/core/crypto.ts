@@ -1,4 +1,5 @@
 import { base64Decode, base64Encode, utf8Decode, utf8Encode } from './bytes';
+import { t } from './i18n';
 
 /**
  * Optional end-to-end encryption for remote blobs.
@@ -81,7 +82,7 @@ export async function open(
 	sealed: Uint8Array,
 	associatedData?: string,
 ): Promise<Uint8Array> {
-	if (sealed.length <= IV_BYTES) throw new Error('密文长度异常');
+	if (sealed.length <= IV_BYTES) throw new Error(t('error.ciphertextLength'));
 	const iv = sealed.subarray(0, IV_BYTES);
 	const ciphertext = sealed.subarray(IV_BYTES);
 	const plaintext = await crypto.subtle.decrypt(
@@ -113,9 +114,9 @@ export async function unlockEncryption(
 	const key = await deriveKey(passphrase, config.kdf);
 	const plaintext = utf8Decode(
 		await open(key, base64Decode(config.verifier), 'verifier').catch(() => {
-			throw new Error('解密失败：口令错误');
+			throw new Error(t('error.wrongPassphrase'));
 		}),
 	);
-	if (plaintext !== VERIFIER_TEXT) throw new Error('解密失败：口令错误');
+	if (plaintext !== VERIFIER_TEXT) throw new Error(t('error.wrongPassphrase'));
 	return key;
 }

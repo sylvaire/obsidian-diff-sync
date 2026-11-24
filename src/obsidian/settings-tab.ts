@@ -1,6 +1,7 @@
 import { App, Modal, Notice, PluginSettingTab } from 'obsidian';
 import type { SettingDefinition, SettingDefinitionItem } from 'obsidian';
 import { DEFAULT_EXCLUDE_PATTERNS } from '../core/glob';
+import { t } from '../core/i18n';
 import { formatBytes } from './naming';
 import type { SyncSettings } from './settings';
 import type DiffSyncPlugin from './main';
@@ -19,8 +20,8 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 				heading: 'WebDAV',
 				items: [
 					{
-						name: '服务器地址',
-						desc: '填入包含目标目录的完整 WebDAV URL。',
+						name: t('settings.serverUrl'),
+						desc: t('settings.serverUrl.desc'),
 						render: (row) => {
 							row.addText((text) => text
 								.setPlaceholder('https://dav.jianguoyun.com/dav/obsidian-sync')
@@ -32,12 +33,12 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: '用户名',
+						name: t('settings.username'),
 						control: { type: 'text', key: 'username' },
 					},
 					{
-						name: '密码 / 应用密码',
-						desc: '坚果云等服务要求使用应用密码。',
+						name: t('settings.password'),
+						desc: t('settings.password.desc'),
 						render: (row) => {
 							row.addText((text) => {
 								text.inputEl.type = 'password';
@@ -49,8 +50,8 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: '远端子目录',
-						desc: '多台设备必须填写相同的远端子目录。',
+						name: t('settings.remoteDir'),
+						desc: t('settings.remoteDir.desc'),
 						render: (row) => {
 							row.addText((text) => text.setPlaceholder('diff-sync')
 								.setValue(settings.remoteDir).onChange(async (value) => {
@@ -60,30 +61,42 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: '测试连接',
-						desc: '创建并删除临时文件以验证服务器的读写与条件写入能力。',
+						name: t('settings.test'),
+						desc: t('settings.test.desc'),
 						render: (row) => {
-							row.addButton((button) => button.setButtonText('测试').onClick(async () => {
-								button.setDisabled(true).setButtonText('测试中…');
-								try {
-									new Notice(`Diff Sync：${await this.plugin.testConnection()}`, 8_000);
-								} catch (error) {
-									new Notice(`Diff Sync 连接失败：${error instanceof Error ? error.message : String(error)}`, 12_000);
-								} finally {
-									button.setDisabled(false).setButtonText('测试');
-								}
-							}));
+							row.addButton((button) => button
+								.setButtonText(t('common.test'))
+								.onClick(async () => {
+									button.setDisabled(true).setButtonText(t('settings.test.running'));
+									try {
+										new Notice(
+											t('connection.success', {
+												message: await this.plugin.testConnection(),
+											}),
+											8_000,
+										);
+									} catch (error) {
+										new Notice(
+											t('connection.failed', {
+												message: error instanceof Error ? error.message : String(error),
+											}),
+											12_000,
+										);
+									} finally {
+										button.setDisabled(false).setButtonText(t('common.test'));
+									}
+								}));
 						},
 					},
 				],
 			},
 			{
 				type: 'group',
-				heading: '安全',
+				heading: t('settings.group.security'),
 				items: [
 					{
-						name: '端到端加密',
-						desc: '加密状态由远端 meta.json 决定，切换前需要清空远端目录。',
+						name: t('settings.encryption'),
+						desc: t('settings.encryption.desc'),
 						render: (row) => {
 							row.addToggle((toggle) => toggle.setValue(settings.encryptionEnabled).onChange(async (value) => {
 								settings.encryptionEnabled = value;
@@ -98,30 +111,44 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: '加密口令',
-						desc: '口令不会保存到磁盘或远端。忘记口令意味着远端数据无法恢复。',
+						name: t('settings.encryptionPassphrase'),
+						desc: t('settings.encryptionPassphrase.desc'),
 						visible: () => settings.encryptionEnabled,
 					},
 				],
 			},
 			{
 				type: 'group',
-				heading: '同步时机',
+				heading: t('settings.group.schedule'),
 				items: [
-					{ name: '启动时自动同步', control: { type: 'toggle', key: 'autoSyncOnStart' } },
-					this.numberSetting('定时同步间隔', '单位分钟，0 表示关闭。', 'autoSyncIntervalMinutes', 0),
 					{
-						name: '文件变更后自动同步',
-						desc: '每次编辑都会触发扫描，大库开启后可能增加负载。',
+						name: t('settings.autoSyncOnStart'),
+						control: { type: 'toggle', key: 'autoSyncOnStart' },
+					},
+					this.numberSetting(
+						t('settings.interval'),
+						t('settings.interval.desc'),
+						'autoSyncIntervalMinutes',
+						0,
+					),
+					{
+						name: t('settings.syncOnFileChange'),
+						desc: t('settings.syncOnFileChange.desc'),
 						control: { type: 'toggle', key: 'syncOnFileChange' },
 					},
 					{
-						...this.numberSetting('变更合并延迟（秒）', '最后一次编辑后等待多久再同步。', 'syncOnFileChangeDelayMs', 2, 1000),
+						...this.numberSetting(
+							t('settings.changeDelay'),
+							t('settings.changeDelay.desc'),
+							'syncOnFileChangeDelayMs',
+							2,
+							1000,
+						),
 						visible: () => settings.syncOnFileChange,
 					},
 					{
-						name: '设备名称',
-						desc: '用于命名冲突副本，避免设备之间生成同名文件。',
+						name: t('settings.deviceName'),
+						desc: t('settings.deviceName.desc'),
 						render: (row) => {
 							row.addText((text) => text.setValue(settings.deviceName).onChange(async (value) => {
 								settings.deviceName = value.trim() || 'device';
@@ -133,11 +160,11 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 			},
 			{
 				type: 'group',
-				heading: '同步范围',
+				heading: t('settings.group.scope'),
 				items: [
 					{
-						name: '排除规则',
-						desc: '一行一个 glob，支持 ** 匹配多级目录。',
+						name: t('settings.excludePatterns'),
+						desc: t('settings.excludePatterns.desc'),
 						render: (row) => {
 							row.addTextArea((area) => {
 								area.inputEl.rows = 8;
@@ -150,9 +177,9 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: '恢复默认排除规则',
+						name: t('settings.restoreExcludes'),
 						render: (row) => {
-							row.addButton((button) => button.setButtonText('恢复').onClick(async () => {
+							row.addButton((button) => button.setButtonText(t('settings.restore')).onClick(async () => {
 								settings.excludePatterns = [...DEFAULT_EXCLUDE_PATTERNS];
 								await save();
 								this.update();
@@ -163,45 +190,51 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 			},
 			{
 				type: 'group',
-				heading: '高级',
+				heading: t('settings.group.advanced'),
 				items: [
 					{
-						name: '冲突覆盖策略',
-						desc: '决定哪个版本沿用原文件名，另一份会保存为冲突副本。按大小覆盖时，同样大小按时间判断。',
+						name: t('settings.conflictStrategy'),
+						desc: t('settings.conflictStrategy.desc'),
 						control: {
 							type: 'dropdown',
 							key: 'conflictStrategy',
-							options: { time: '按时间覆盖', size: '按大小覆盖（较大优先）' },
+							options: {
+								time: t('settings.conflictStrategy.time'),
+								size: t('settings.conflictStrategy.size'),
+							},
 						},
 					},
 					{
-						name: '并发请求数',
-						desc: '同时下载或上传的分块数，坚果云建议不超过 4。',
+						name: t('settings.concurrency'),
+						desc: t('settings.concurrency.desc'),
 						control: { type: 'slider', key: 'requestConcurrency', min: 1, max: 12, step: 1 },
 					},
 					{
-						name: '平均分块大小 (KB)',
-						desc: '较小的块可减少差分传输量，但会增加远端文件数。修改后已有文件会重新分块。',
+						name: t('settings.chunkSize'),
+						desc: t('settings.chunkSize.desc'),
 						control: { type: 'slider', key: 'chunkSizeKb', min: 2, max: 64, step: 2 },
 					},
 					{
-						name: '允许批量删除',
-						desc: '关闭时，大批量删除会中止同步，防止远端索引异常导致本地数据丢失。',
+						name: t('settings.allowMassDelete'),
+						desc: t('settings.allowMassDelete.desc'),
 						control: { type: 'toggle', key: 'allowMassDelete' },
 					},
 					{
-						name: '保留本地历史快照',
-						desc: '下载覆盖本地文件前，将旧版本保存到 .diff-sync-history/。',
+						name: t('settings.keepHistory'),
+						desc: t('settings.keepHistory.desc'),
 						control: { type: 'toggle', key: 'keepHistory' },
 					},
 					{
-						name: '保留快照数量',
+						name: t('settings.historyLimit'),
 						visible: () => settings.keepHistory,
 						control: { type: 'slider', key: 'historyLimit', min: 1, max: 100, step: 1 },
 					},
-					{ name: '状态栏显示', control: { type: 'toggle', key: 'showStatusBar' } },
 					{
-						name: '启动时打开同步面板',
+						name: t('settings.showStatusBar'),
+						control: { type: 'toggle', key: 'showStatusBar' },
+					},
+					{
+						name: t('settings.showPanelOnStart'),
 						render: (row) => {
 							row.addToggle((toggle) => toggle.setValue(settings.showPanelOnStart).onChange(async (value) => {
 								settings.showPanelOnStart = value;
@@ -211,51 +244,53 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: '详细日志',
-						desc: '在插件的同步日志中显示常规同步事件。',
+						name: t('settings.verboseLogging'),
+						desc: t('settings.verboseLogging.desc'),
 						control: { type: 'toggle', key: 'verboseLogging' },
 					},
 				],
 			},
 			{
 				type: 'group',
-				heading: '维护',
+				heading: t('settings.group.maintenance'),
 				items: [
 					{
-						name: '本地分块缓存',
-						desc: '按需统计缓存文件的数量和大小。',
+						name: t('settings.localCache'),
+						desc: t('settings.localCache.desc'),
 						render: (row) => {
 							const cache = this.plugin.getCache();
-							row.addButton((button) => button.setButtonText('查看用量').onClick(async () => {
+							row.addButton((button) => button.setButtonText(t('settings.cache.viewUsage')).onClick(async () => {
 								button.setDisabled(true);
-								row.setDesc('正在统计缓存…');
+								row.setDesc(t('settings.cache.counting'));
 								try {
 									const { count, bytes } = await cache.size();
-									row.setDesc(`${count} 个分块，占用 ${formatBytes(bytes)}`);
+									row.setDesc(
+										t('settings.cache.usage', { count, size: formatBytes(bytes) }),
+									);
 								} catch {
-									row.setDesc('无法读取缓存信息');
+									row.setDesc(t('settings.cache.unreadable'));
 								} finally {
 									button.setDisabled(false);
 								}
 							}));
-							row.addButton((button) => button.setButtonText('清空缓存').onClick(async () => {
+							row.addButton((button) => button.setButtonText(t('settings.cache.clear')).onClick(async () => {
 								await cache.clear();
-								new Notice('已清空本地分块缓存');
+								new Notice(t('notice.chunkCacheCleared'));
 								this.update();
 							}));
 						},
 					},
 					{
-						name: '同步状态',
+						name: t('settings.syncStatus'),
 						render: (row) => {
-							row.addButton((button) => button.setButtonText('立即同步').setCta().onClick(async () => {
+							row.addButton((button) => button.setButtonText(t('command.syncNow')).setCta().onClick(async () => {
 								await this.plugin.sync();
 								this.update();
 							}));
 						},
 					},
 					{
-						name: '上次同步',
+						name: t('settings.lastSync'),
 						searchable: false,
 						visible: () => this.plugin.lastSyncResult() !== null,
 						render: (row) => {
@@ -263,26 +298,43 @@ export class DiffSyncSettingTab extends PluginSettingTab {
 							if (!result) return;
 							const summary = result.summary;
 							row.descEl.createEl('p', {
-								text: `上传 ${summary.uploadedFiles} / 下载 ${summary.downloadedFiles} / 删除 ${summary.deletedLocal + summary.deletedRemote} / 冲突 ${summary.conflicts}`,
+								text: t('settings.lastSync.movement', {
+									uploaded: summary.uploadedFiles,
+									downloaded: summary.downloadedFiles,
+									deleted: summary.deletedLocal + summary.deletedRemote,
+									conflicts: summary.conflicts,
+								}),
 							});
 							row.descEl.createEl('p', {
-								text: `传输 ${formatBytes(summary.bytesUploaded + summary.bytesDownloaded)}，全量需 ${formatBytes(summary.naiveBytes)}，清理 ${summary.gcRemoved} 个分块`,
+								text: t('settings.lastSync.transfer', {
+									total: formatBytes(summary.bytesUploaded + summary.bytesDownloaded),
+									naive: formatBytes(summary.naiveBytes),
+									gc: summary.gcRemoved,
+								}),
 							});
 							if (summary.errors.length > 0) {
-								row.descEl.createEl('p', { cls: 'mod-warning', text: `错误：${summary.errors.join('；')}` });
+								row.descEl.createEl('p', {
+									cls: 'mod-warning',
+									text: t('settings.lastSync.errors', {
+										errors: summary.errors.join('; '),
+									}),
+								});
 							}
 						},
 					},
 					{
-						name: '重置本地同步状态',
-						desc: '删除本地合并基线，下次同步会当作首次同步，不会删除笔记。',
+						name: t('settings.reset'),
+						desc: t('settings.reset.desc'),
 						render: (row) => {
-							row.addButton((button) => button.setButtonText('重置').setDestructive().onClick(async () => {
-								if (!(await confirmWithModal(this.app, '重置本地同步状态？'))) return;
-								await this.plugin.resetLocalState();
-								new Notice('已重置本地同步状态');
-								this.update();
-							}));
+							row.addButton((button) => button
+								.setButtonText(t('settings.reset.button'))
+								.setDestructive()
+								.onClick(async () => {
+									if (!(await confirmWithModal(this.app, t('settings.reset.confirm')))) return;
+									await this.plugin.resetLocalState();
+									new Notice(t('notice.stateReset'));
+									this.update();
+								}));
 						},
 					},
 				],
@@ -368,12 +420,16 @@ class ConfirmModal extends Modal {
 		const { contentEl } = this;
 		contentEl.createEl('h3', { text: this.message });
 		const buttons = contentEl.createDiv({ cls: 'modal-button-container' });
-		buttons.createEl('button', { text: '取消' }).addEventListener('click', () => this.close());
-		buttons.createEl('button', { text: '确定', cls: 'mod-warning' }).addEventListener('click', () => {
-			this.answered = true;
-			this.resolve(true);
-			this.close();
-		});
+		buttons
+			.createEl('button', { text: t('common.cancel') })
+			.addEventListener('click', () => this.close());
+		buttons
+			.createEl('button', { text: t('common.confirm'), cls: 'mod-warning' })
+			.addEventListener('click', () => {
+				this.answered = true;
+				this.resolve(true);
+				this.close();
+			});
 	}
 
 	onClose(): void {

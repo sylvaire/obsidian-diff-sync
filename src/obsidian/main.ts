@@ -8,11 +8,13 @@ import {
 	TAbstractFile,
 	TFile,
 	WorkspaceLeaf,
+	getLanguage,
 	normalizePath,
 } from 'obsidian';
 import { runSync, SyncResult } from '../core/engine';
 import { PathFilter } from '../core/glob';
 import { HISTORY_DIR, historyPathFor, snapshotStamp, staleSnapshots } from '../core/history';
+import { localeFromLanguageTag, pluralSuffix, setLocale, t } from '../core/i18n';
 import { createEmptyState, parseState, SyncState } from '../core/manifest';
 import { RemoteMeta, RemoteStore, VaultMismatchError } from '../core/remote';
 import { SyncProgress, SyncSummary } from '../core/types';
@@ -52,36 +54,42 @@ export default class DiffSyncPlugin extends Plugin {
 	private lastIntervalSync = 0;
 
 	async onload(): Promise<void> {
+		// Follow Obsidian's language; anything other than Chinese gets English.
+		setLocale(localeFromLanguageTag(getLanguage()));
 		await this.loadSettings();
 		this.chunkCache = new DiskChunkCache(this.app.vault.adapter, this.pluginDir());
 
-		this.addRibbonIcon('refresh-cw', 'Diff Sync：立即同步', () => void this.sync());
-		this.addCommand({ id: 'sync-now', name: '立即同步', callback: () => void this.sync() });
+		this.addRibbonIcon('refresh-cw', t('ribbon.syncNow'), () => void this.sync());
+		this.addCommand({ id: 'sync-now', name: t('command.syncNow'), callback: () => void this.sync() });
 		this.addCommand({
 			id: 'sync-full-rescan',
-			name: '完整重新扫描并同步',
+			name: t('command.fullRescan'),
 			callback: () => void this.sync({ alwaysRehash: true }),
 		});
-		this.addCommand({ id: 'cancel-sync', name: '取消当前同步', callback: () => this.cancelSync() });
+		this.addCommand({
+			id: 'cancel-sync',
+			name: t('command.cancelSync'),
+			callback: () => this.cancelSync(),
+		});
 		this.addCommand({
 			id: 'show-sync-log',
-			name: '显示同步日志',
+			name: t('command.showLog'),
 			callback: () => this.showLog(),
 		});
 		this.addCommand({
 			id: 'clear-chunk-cache',
-			name: '清空本地分块缓存',
+			name: t('command.clearChunkCache'),
 			callback: async () => {
 				await this.chunkCache.clear();
-				new Notice('已清空本地分块缓存；下次同步会按需重新上传分块');
+				new Notice(t('notice.chunkCacheClearedDetailed'));
 			},
 		});
 		this.addCommand({
 			id: 'clear-history',
-			name: '清空本地历史快照',
+			name: t('command.clearHistory'),
 			callback: async () => {
 				await this.clearHistory();
-				new Notice('已清空历史快照');
+				new Notice(t('notice.historyCleared'));
 			},
 		});
 
@@ -92,13 +100,13 @@ export default class DiffSyncPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: 'open-sync-panel',
-			name: '打开同步面板',
+			name: t('command.openPanel'),
 			callback: () => void this.activatePanel(),
 		});
 
 		this.addSettingTab(new DiffSyncSettingTab(this.app, this));
 		if (this.settings.showStatusBar) this.ensureStatusBar();
-		this.setStatus('待同步');
+		this.setStatus(t('status.pending'));
 
 		this.registerEvent(this.app.vault.on('modify', (file) => this.onVaultEvent(file)));
 		this.registerEvent(this.app.vault.on('create', (file) => this.onVaultEvent(file)));
@@ -114,7 +122,9 @@ export default class DiffSyncPlugin extends Plugin {
 		});
 
 		if (this.settings.autoSyncOnStart) {
-			this.app.workspace.onLayoutReady(() => void this.sync({ silent: true, triggered: '启动' }));
+			this.app.workspace.onLayoutReady(() =>
+				void this.sync({ silent: true, triggered: t('trigger.startup') }),
+			);
 		}
 	}
 
@@ -154,8 +164,8 @@ export default class DiffSyncPlugin extends Plugin {
 		this.statusEl = this.addStatusBarItem();
 		this.statusEl.addClass('mod-clickable');
 		this.statusEl.addEventListener('click', () => void this.sync());
-		this.statusEl.setText('⇅ 待同步');
-		this.statusEl.setAttribute('aria-label', 'Diff Sync — 点击立即同步');
+		this.statusEl.setText(`⇅ ${t('status.pending')}`);
+		this.statusEl.setAttribute('aria-label', t('status.barTooltip'));
 	}
 
 	setStatus(text: string): void {
@@ -173,7 +183,7 @@ export default class DiffSyncPlugin extends Plugin {
 	showLog(): void {
 		const lines = this.getLog().slice(-150);
 		if (lines.length === 0) {
-			new Notice('暂无日志');
+			new Notice(t('notice.noLog'));
 			return;
 		}
 		const text = lines
@@ -211,7 +221,7 @@ export default class DiffSyncPlugin extends Plugin {
 		if (this.abortController) {
 			this.abortController.abort();
 			this.abortController = null;
-			this.log('已请求取消同步', 'warn');
+			this.log(t('log.cancelRequested'), 'warn');
 		}
 	}
 
@@ -219,11 +229,11 @@ export default class DiffSyncPlugin extends Plugin {
 		options: { alwaysRehash?: boolean; silent?: boolean; triggered?: string } = {},
 	): Promise<void> {
 		if (this.syncing) {
-			if (!options.silent) new Notice('同步已在进行中');
+			if (!options.silent) new Notice(t('notice.alreadySyncing'));
 			return;
 		}
 		if (!isConfigured(this.settings)) {
-			if (!options.silent) new Notice('请先在设置中填写 WebDAV 服务器地址');
+			if (!options.silent) new Notice(t('notice.notConfigured'));
 			return;
 		}
 
@@ -235,8 +245,12 @@ export default class DiffSyncPlugin extends Plugin {
 		let lastPhase: SyncProgress['phase'] | undefined;
 
 		try {
-			this.log(`开始同步${options.triggered ? `（${options.triggered}）` : ''}`);
-			this.setStatus('准备中…');
+			this.log(
+				options.triggered
+					? t('log.syncStartedWith', { trigger: options.triggered })
+					: t('log.syncStarted'),
+			);
+			this.setStatus(t('status.preparing'));
 			this.panel?.setSyncing(true);
 
 			const { store, meta } = await this.connect();
@@ -282,25 +296,25 @@ export default class DiffSyncPlugin extends Plugin {
 		} catch (error) {
 			const message = describeSyncError(error);
 			this.log(message, 'error');
-			this.setStatus('同步失败');
-			this.panel?.setStatus('同步失败', message);
-			if (!options.silent) new Notice(`Diff Sync 失败：${message}`, 12_000);
+			this.setStatus(t('status.failed'));
+			this.panel?.setStatus(t('status.failed'), message);
+			if (!options.silent) new Notice(t('notice.syncFailed', { message }), 12_000);
 		} finally {
 			this.syncing = false;
 			this.abortController = null;
-			this.log(`同步结束，用时 ${formatDuration(Date.now() - startedAt)}`);
+			this.log(t('log.syncFinished', { duration: formatDuration(Date.now() - startedAt) }));
 			this.panel?.setSyncing(false);
 		}
 	}
 
 	private onProgress(progress: SyncProgress): void {
 		const labels: Record<SyncProgress['phase'], string> = {
-			scan: '扫描本地',
-			plan: '比较差异',
-			download: '下载差异',
-			upload: '上传差异',
-			finalize: '写入索引',
-			gc: '清理分块',
+			scan: t('progress.scan'),
+			plan: t('progress.plan'),
+			download: t('progress.download'),
+			upload: t('progress.upload'),
+			finalize: t('progress.finalize'),
+			gc: t('progress.gc'),
 		};
 		this.setStatus(`${labels[progress.phase]} ${progress.detail ?? ''}`.trim());
 		this.panel?.updateFromProgress(progress);
@@ -314,7 +328,9 @@ export default class DiffSyncPlugin extends Plugin {
 		if (summary.downloadedFiles) parts.push(`↓${summary.downloadedFiles}`);
 		if (deleted) parts.push(`✕${deleted}`);
 		if (summary.conflicts) parts.push(`⚠${summary.conflicts}`);
-		this.setStatus(`${parts.join(' ') || '已是最新'} · ${formatDuration(summary.durationMs)}`);
+		this.setStatus(
+			`${parts.join(' ') || t('status.upToDate')} · ${formatDuration(summary.durationMs)}`,
+		);
 
 		const total = summary.bytesUploaded + summary.bytesDownloaded;
 		const saved = summary.naiveBytes - total;
@@ -325,33 +341,46 @@ export default class DiffSyncPlugin extends Plugin {
 		for (const error of summary.errors) this.log(error, 'error');
 
 		if (summary.conflicts > 0) {
-			this.log(`冲突副本：${summary.conflictPaths.join(', ')}`, 'warn');
+			this.log(t('log.conflictCopies', { paths: summary.conflictPaths.join(', ') }), 'warn');
 		}
-		if (summary.gcRemoved > 0) this.log(`清理了 ${summary.gcRemoved} 个无用分块`);
+		if (summary.gcRemoved > 0) {
+			this.log(t('log.gcRemoved', { count: summary.gcRemoved }));
+		}
 
 		if (silent && moved === 0 && deleted === 0 && summary.conflicts === 0) {
-			this.log(`无变化（${summary.skippedFiles} 个文件已是最新）`);
+			this.log(t('log.noChanges', { count: summary.skippedFiles }));
 			return;
 		}
 
 		const lines = [
-			`↑${summary.uploadedFiles} 文件 / ${formatBytes(summary.bytesUploaded)}，` +
-				`↓${summary.downloadedFiles} 文件 / ${formatBytes(summary.bytesDownloaded)}`,
+			t('notice.summary.line1', {
+				uploaded: summary.uploadedFiles,
+				uploadedPlural: pluralSuffix(summary.uploadedFiles),
+				uploadedBytes: formatBytes(summary.bytesUploaded),
+				downloaded: summary.downloadedFiles,
+				downloadedPlural: pluralSuffix(summary.downloadedFiles),
+				downloadedBytes: formatBytes(summary.bytesDownloaded),
+			}),
 		];
 		if (summary.naiveBytes > 0) {
 			lines.push(
-				`差分传输节省 ${formatBytes(Math.max(0, saved))}（${savingPct}%，` +
-					`全量需 ${formatBytes(summary.naiveBytes)}）`,
+				t('notice.summary.saved', {
+					saved: formatBytes(Math.max(0, saved)),
+					percent: savingPct,
+					naive: formatBytes(summary.naiveBytes),
+				}),
 			);
 		}
 		if (summary.conflicts > 0) {
 			lines.push(
-				`${summary.conflicts} 个冲突已另存为副本：\n` +
-					summary.conflictPaths.slice(0, 3).map((p) => `· ${p}`).join('\n'),
+				t('notice.summary.conflicts', {
+					count: summary.conflicts,
+					paths: summary.conflictPaths.slice(0, 3).map((p) => `· ${p}`).join('\n'),
+				}),
 			);
 		}
 		if (summary.errors.length > 0) {
-			lines.push(`错误：${summary.errors.slice(0, 2).join('；')}`);
+			lines.push(t('notice.summary.errors', { errors: summary.errors.slice(0, 2).join('; ') }));
 		}
 		new Notice(`Diff Sync\n${lines.join('\n')}`, 8_000);
 	}
@@ -401,7 +430,7 @@ export default class DiffSyncPlugin extends Plugin {
 			if (!written.ok) {
 				// Another device created it first: adopt theirs.
 				meta = await RemoteStore.readMeta(client);
-				if (!meta) throw new Error('无法读取远端 meta.json');
+				if (!meta) throw new Error(t('connect.metaUnreadable'));
 			} else {
 				meta = created;
 			}
@@ -413,9 +442,9 @@ export default class DiffSyncPlugin extends Plugin {
 
 		let key: CryptoKey | null = null;
 		if (meta.encrypted) {
-			if (!meta.kdf || !meta.verifier) throw new Error('远端加密元数据缺失');
+			if (!meta.kdf || !meta.verifier) throw new Error(t('connect.encryptionMetaMissing'));
 			const passphrase = await this.askPassphrase();
-			if (!passphrase) throw new Error('已取消：需要口令才能访问加密的远端');
+			if (!passphrase) throw new Error(t('connect.cancelledPassphraseRequired'));
 			key = await unlockEncryption(passphrase, { kdf: meta.kdf, verifier: meta.verifier });
 		}
 
@@ -431,11 +460,11 @@ export default class DiffSyncPlugin extends Plugin {
 
 	private async initializeEncryption(): Promise<void> {
 		const passphrase = await this.promptPassphrase({
-			title: '设置端到端加密口令',
-			description: '口令只用于派生本地密钥，绝不上传。口令遗失将无法恢复远端备份。',
+			title: t('encryption.setTitle'),
+			description: t('encryption.setDescription'),
 			confirm: true,
 		});
-		if (!passphrase) throw new Error('已取消：未设置加密口令');
+		if (!passphrase) throw new Error(t('encryption.cancelledNotSet'));
 		const { config } = await buildEncryptionConfig(passphrase, 210_000);
 		this.settings.encryptionSalt = config.kdf.salt;
 		this.settings.encryptionIterations = config.kdf.iterations;
@@ -447,8 +476,8 @@ export default class DiffSyncPlugin extends Plugin {
 	private async askPassphrase(): Promise<string | null> {
 		if (this.sessionPassphrase) return this.sessionPassphrase;
 		const entered = await this.promptPassphrase({
-			title: '输入端到端加密口令',
-			description: '口令仅保存在本次会话的内存中。',
+			title: t('encryption.enterTitle'),
+			description: t('encryption.enterDescription'),
 			confirm: false,
 		});
 		if (entered) this.sessionPassphrase = entered;
@@ -557,7 +586,7 @@ export default class DiffSyncPlugin extends Plugin {
 		if (minutes <= 0 || this.syncing) return;
 		if (Date.now() - this.lastIntervalSync < minutes * 60_000) return;
 		this.lastIntervalSync = Date.now();
-		void this.sync({ silent: true, triggered: '定时同步' });
+		void this.sync({ silent: true, triggered: t('trigger.interval') });
 	}
 
 	/** Forget the merge base so the next sync behaves like a first run. */
@@ -566,7 +595,7 @@ export default class DiffSyncPlugin extends Plugin {
 		const path = this.statePath();
 		if (await adapter.exists(path)) await adapter.remove(path);
 		this.lastResult = null;
-		this.log('已重置本地同步状态');
+		this.log(t('notice.stateReset'));
 	}
 
 	// -------------------------------------------------------------- file events
@@ -579,7 +608,7 @@ export default class DiffSyncPlugin extends Plugin {
 		if (this.eventTimer) window.clearTimeout(this.eventTimer);
 		this.eventTimer = window.setTimeout(() => {
 			this.eventTimer = null;
-			if (!this.syncing) void this.sync({ silent: true, triggered: '文件变更' });
+			if (!this.syncing) void this.sync({ silent: true, triggered: t('trigger.fileChange') });
 		}, this.settings.syncOnFileChangeDelayMs);
 	}
 
@@ -625,16 +654,14 @@ export default class DiffSyncPlugin extends Plugin {
 		const written = await client.put(probe, new TextEncoder().encode('ok'), {
 			contentType: 'text/plain',
 		});
-		if (!written.ok) throw new Error('写入测试文件失败');
+		if (!written.ok) throw new Error(t('connection.writeFailed'));
 		const read = await client.get(probe);
 		await client.delete(probe);
 		if (!read || new TextDecoder().decode(read) !== 'ok') {
-			throw new Error('读取测试文件内容不一致');
+			throw new Error(t('connection.readMismatch'));
 		}
 		const conditional = client.conditionalWritesSupported;
-		return conditional === false
-			? '连接成功（服务器未实现条件写入，并发保护已降级）'
-			: '连接成功，读写正常';
+		return conditional === false ? t('connection.okDegraded') : t('connection.ok');
 	}
 }
 
@@ -662,7 +689,9 @@ function toArrayBuffer(data: Uint8Array): ArrayBuffer {
 function describeSyncError(error: unknown): string {
 	if (error instanceof VaultMismatchError) return error.message;
 	if (error instanceof WebDavError) {
-		return error.status === 0 ? `无法连接服务器：${error.message}` : error.message;
+		return error.status === 0
+			? t('error.cannotConnect', { message: error.message })
+			: error.message;
 	}
 	return errorMessage(error);
 }
@@ -690,7 +719,7 @@ class PassphraseModal extends Modal {
 			cls: 'setting-item-description',
 		});
 
-		new Setting(contentEl).setName('口令').addText((text) => {
+		new Setting(contentEl).setName(t('encryption.passphrase')).addText((text) => {
 			text.inputEl.type = 'password';
 			text.onChange((value) => (this.value = value));
 			text.inputEl.addEventListener('keydown', (event) => {
@@ -700,7 +729,7 @@ class PassphraseModal extends Modal {
 		});
 
 		if (this.options.confirm) {
-			new Setting(contentEl).setName('确认口令').addText((text) => {
+			new Setting(contentEl).setName(t('encryption.confirmPassphrase')).addText((text) => {
 				text.inputEl.type = 'password';
 				text.onChange((value) => (this.confirmValue = value));
 				text.inputEl.addEventListener('keydown', (event) => {
@@ -713,19 +742,21 @@ class PassphraseModal extends Modal {
 		this.errorEl.hidden = true;
 
 		const buttons = contentEl.createDiv({ cls: 'modal-button-container' });
-		buttons.createEl('button', { text: '取消' }).addEventListener('click', () => this.close());
-		buttons.createEl('button', { text: '确定', cls: 'mod-cta' }).addEventListener('click', () =>
-			this.submit(),
-		);
+		buttons
+			.createEl('button', { text: t('common.cancel') })
+			.addEventListener('click', () => this.close());
+		buttons
+			.createEl('button', { text: t('common.confirm'), cls: 'mod-cta' })
+			.addEventListener('click', () => this.submit());
 	}
 
 	private submit(): void {
-		if (!this.value.trim()) return this.showError('请输入口令');
+		if (!this.value.trim()) return this.showError(t('encryption.error.empty'));
 		if (this.options.confirm && this.value !== this.confirmValue) {
-			return this.showError('两次输入不一致');
+			return this.showError(t('encryption.error.mismatch'));
 		}
 		if (this.options.confirm && this.value.length < 8) {
-			return this.showError('口令至少 8 个字符');
+			return this.showError(t('encryption.error.tooShort'));
 		}
 		this.settled = true;
 		this.resolve(this.value);

@@ -205,6 +205,8 @@ const obsidianStub = {
 	TFile: class {},
 	TAbstractFile: class {},
 	Platform: { isWin: process.platform === 'win32', isMacOS: process.platform === 'darwin', isLinux: process.platform === 'linux' },
+	// A non-Chinese app language must render the English catalog.
+	getLanguage: () => 'en',
 	normalizePath: (p) => p.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+|\/+$/g, ''),
 	requestUrl: async () => ({ status: 200, headers: {}, arrayBuffer: new ArrayBuffer(0) }),
 	debounce: (fn) => fn,
@@ -275,10 +277,10 @@ assert.equal(view.getDisplayText(), 'Diff Sync', 'view title');
 await view.onOpen();
 const dom = view.contentEl;
 
-// --- the main button exists and is labelled in Chinese
+// --- the main button exists and is labelled in English (non-Chinese app)
 const button = dom.all((n) => n.tagName === 'BUTTON' && n.classes.has('diff-sync-panel__sync'))[0];
 assert.ok(button, 'sync button rendered');
-assert.ok(button.text.includes('立即同步'), `button label: ${JSON.stringify(button.text)}`);
+assert.ok(button.text.includes('Sync now'), `button label: ${JSON.stringify(button.text)}`);
 
 // --- unconfigured: button disabled + hint shown
 assert.equal(plugin.isConfigured(), false, 'starts unconfigured');
@@ -317,7 +319,7 @@ assert.equal(cancel.classes.has('is-hidden'), true, 'cancel hidden when idle');
 // --- progress plumbing
 view.updateFromProgress({ phase: 'upload', current: 3, total: 10, detail: 'notes/a.md' });
 const status = dom.all((n) => n.classes.has('diff-sync-panel__status'))[0];
-assert.ok(status.text.includes('上传'), `status text: ${status.text}`);
+assert.ok(status.text.includes('Upload'), `status text: ${status.text}`);
 const fill = dom.all((n) => n.classes.has('diff-sync-panel__progress-fill'))[0];
 assert.equal(fill.style.width, '30%', 'progress bar reflects 3/10');
 

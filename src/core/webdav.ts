@@ -1,4 +1,5 @@
 import { base64Encode } from './bytes';
+import { t } from './i18n';
 import { sleep } from './util';
 
 export interface WebDavConfig {
@@ -169,7 +170,11 @@ export class WebDavClient {
 			}
 		}
 		const detail = lastError instanceof Error ? lastError.message : String(lastError);
-		throw new WebDavError(`${options.method} ${url} 失败: ${detail}`, 0, url);
+		throw new WebDavError(
+			t('error.requestFailed', { method: options.method, url, detail }),
+			0,
+			url,
+		);
 	}
 
 	/** Exponential backoff with jitter, widened while the server is throttling. */
@@ -192,7 +197,7 @@ export class WebDavClient {
 	private assertAuthorized(response: HttpResponse, url: string): void {
 		if (response.status === 401 || response.status === 403) {
 			throw new WebDavError(
-				'WebDAV 认证失败，请检查用户名与密码（坚果云需使用“应用密码”）',
+				t('error.authFailed'),
 				response.status,
 				url,
 			);
@@ -301,7 +306,7 @@ export class WebDavClient {
 		if (response.status === 405 || response.status === 301 || response.status === 302) return false;
 		this.assertAuthorized(response, url);
 		if (response.status === 409) {
-			throw new WebDavError(`MKCOL ${url} -> 409（父目录不存在）`, 409, url);
+			throw new WebDavError(t('error.mkcolParentMissing', { url }), 409, url);
 		}
 		if (response.status < 200 || response.status >= 300) {
 			throw new WebDavError(`MKCOL ${url} -> ${response.status}`, response.status, url);
@@ -319,7 +324,7 @@ export class WebDavClient {
 	async ensureCollection(collectionUrl: string): Promise<void> {
 		const base = this.config.baseUrl.trim().replace(/\/+$/, '');
 		if (!collectionUrl.startsWith(base)) {
-			throw new Error(`目录 ${collectionUrl} 不在服务器地址 ${base} 之内`);
+			throw new Error(t('error.collectionOutsideBase', { url: collectionUrl, base }));
 		}
 
 		const url = parseAbsoluteUrl(base);
@@ -385,7 +390,7 @@ export function normalizeEtag(etag: string | null): string | null {
 /** Split an absolute URL into its origin and the encoded path prefix. */
 function parseAbsoluteUrl(input: string): { origin: string; pathPrefix: string } {
 	const marker = input.indexOf('://');
-	if (marker < 0) throw new Error(`服务器地址必须以 http:// 或 https:// 开头: ${input}`);
+	if (marker < 0) throw new Error(t('error.invalidBaseUrl', { input }));
 	const afterScheme = input.slice(marker + 3);
 	const slash = afterScheme.indexOf('/');
 	const host = slash < 0 ? afterScheme : afterScheme.slice(0, slash);

@@ -1,4 +1,5 @@
 import { DataAdapter } from 'obsidian';
+import { t } from '../core/i18n';
 import { ChunkCache } from '../core/types';
 import { safeSegment } from './naming';
 
@@ -21,7 +22,7 @@ export class DiskChunkCache implements ChunkCache {
 	}
 
 	private pathFor(id: string): string {
-		if (!/^[0-9a-f]{32}$/.test(id)) throw new Error(`非法分块 id: ${id}`);
+		if (!/^[0-9a-f]{32}$/.test(id)) throw new Error(t('error.invalidChunkId', { id }));
 		return `${this.dir}/${id.slice(0, 2)}/${id}`;
 	}
 

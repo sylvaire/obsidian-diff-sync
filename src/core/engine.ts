@@ -1,5 +1,6 @@
 import { chunkBytes, ChunkerConfig, DEFAULT_CHUNKER } from './chunker';
 import { contentId } from './hash';
+import { t } from './i18n';
 import {
 	isLive,
 	RemoteFileLive,
@@ -116,7 +117,7 @@ async function scanLocal(ctx: EngineContext): Promise<void> {
 		assertNotAborted(ctx.signal);
 		const path = normalizePath(info.path);
 		if (!isSafePath(path)) {
-			ctx.summary.warnings.push(`跳过非法路径: ${path}`);
+			ctx.summary.warnings.push(t('engine.warn.skipUnsafePath', { path }));
 			return;
 		}
 
@@ -173,7 +174,7 @@ function planActions(ctx: EngineContext): Action[] {
 	for (const rawPath of [...paths].sort()) {
 		const path = normalizePath(rawPath);
 		if (!isSafePath(path)) {
-			ctx.summary.warnings.push(`忽略非法路径: ${rawPath}`);
+			ctx.summary.warnings.push(t('engine.warn.ignoreUnsafePath', { path: rawPath }));
 			continue;
 		}
 		if (excluded(path)) {
@@ -194,9 +195,14 @@ function planActions(ctx: EngineContext): Action[] {
 		// ---- no merge base ----
 		if (!base) {
 			if (local && !remote) {
-				actions.push({ kind: 'upload', path, reason: '本地新增' });
+				actions.push({ kind: 'upload', path, reason: t('reason.localAdded') });
 			} else if (!local && remote) {
-				actions.push({ kind: 'download', path, entry: remote, reason: '远端新增' });
+				actions.push({
+					kind: 'download',
+					path,
+					entry: remote,
+					reason: t('reason.remoteAdded'),
+				});
 			} else if (local && remote) {
 				if (local.hash === remote.h) {
 					ctx.state.files[path] = stateEntry(local.hash, local.size, local.mtime, local.chunkIds);
@@ -218,8 +224,13 @@ function planActions(ctx: EngineContext): Action[] {
 		if (!local) {
 			const remoteChanged = !remote || remote.h !== base.h;
 			if (remoteChanged && remote) {
-				ctx.summary.warnings.push(`${path}: 本地已删除但远端有修改，已恢复本地文件`);
-				actions.push({ kind: 'download', path, entry: remote, reason: '本地删除但远端已修改' });
+				ctx.summary.warnings.push(t('engine.warn.localDeletedRemoteChanged', { path }));
+				actions.push({
+					kind: 'download',
+					path,
+					entry: remote,
+					reason: t('reason.localDeletedRemoteChanged'),
+				});
 			} else {
 				actions.push({ kind: 'delete-remote', path });
 			}
@@ -230,12 +241,16 @@ function planActions(ctx: EngineContext): Action[] {
 		if (!remote) {
 			const localChanged = local.hash !== base.h;
 			if (localChanged) {
-				ctx.summary.warnings.push(`${path}: 远端已删除但本地有修改，已重新上传`);
-				actions.push({ kind: 'upload', path, reason: '远端删除但本地已修改' });
+				ctx.summary.warnings.push(t('engine.warn.remoteDeletedLocalChanged', { path }));
+				actions.push({
+					kind: 'upload',
+					path,
+					reason: t('reason.remoteDeletedLocalChanged'),
+				});
 			} else if (rawRemote !== undefined) {
 				actions.push({ kind: 'delete-local', path });
 			} else {
-				actions.push({ kind: 'upload', path, reason: '本地新增' });
+				actions.push({ kind: 'upload', path, reason: t('reason.localAdded') });
 			}
 			continue;
 		}
@@ -248,9 +263,14 @@ function planActions(ctx: EngineContext): Action[] {
 			ctx.state.files[path] = stateEntry(local.hash, local.size, local.mtime, local.chunkIds);
 			ctx.summary.skippedFiles++;
 		} else if (localChanged && !remoteChanged) {
-			actions.push({ kind: 'upload', path, reason: '本地修改' });
+			actions.push({ kind: 'upload', path, reason: t('reason.localModified') });
 		} else if (!localChanged && remoteChanged) {
-			actions.push({ kind: 'download', path, entry: remote, reason: '远端修改' });
+			actions.push({
+				kind: 'download',
+				path,
+				entry: remote,
+				reason: t('reason.remoteModified'),
+			});
 		} else if (local.hash === remote.h) {
 			ctx.state.files[path] = stateEntry(local.hash, local.size, local.mtime, local.chunkIds);
 			ctx.summary.skippedFiles++;
@@ -317,9 +337,9 @@ async function ensureChunks(ctx: EngineContext, path: string, entry: RemoteFileL
 		assertNotAborted(ctx.signal);
 		if (ctx.cached.has(id)) return;
 		const body = await ctx.store.getChunk(id);
-		if (!body) throw new Error(`远端缺少分块 ${id}（远端仓库可能被外部修改）`);
+		if (!body) throw new Error(t('engine.error.missingChunkRemote', { id }));
 		if ((await contentId(body)) !== id) {
-			throw new Error(`分块 ${id} 校验失败（远端损坏或加密口令不一致）`);
+			throw new Error(t('engine.error.chunkCorruptRemote', { id }));
 		}
 		await ctx.cache.put(id, body);
 		ctx.cached.add(id);
@@ -335,8 +355,10 @@ async function assemble(ctx: EngineContext, entry: RemoteFileLive): Promise<Uint
 		let bytes = await ctx.cache.get(id);
 		if (!bytes) {
 			const fetched = await ctx.store.getChunk(id);
-			if (!fetched) throw new Error(`缺少分块 ${id}`);
-			if ((await contentId(fetched)) !== id) throw new Error(`分块 ${id} 校验失败`);
+			if (!fetched) throw new Error(t('engine.error.chunkMissing', { id }));
+			if ((await contentId(fetched)) !== id) {
+				throw new Error(t('engine.error.chunkCorrupt', { id }));
+			}
 			await ctx.cache.put(id, fetched);
 			ctx.cached.add(id);
 			ctx.fetchedChunks++;
@@ -348,7 +370,9 @@ async function assemble(ctx: EngineContext, entry: RemoteFileLive): Promise<Uint
 
 	let total = 0;
 	for (const part of parts) total += part.length;
-	if (total !== entry.s) throw new Error(`文件大小不符: ${total} != ${entry.s}`);
+	if (total !== entry.s) {
+		throw new Error(t('engine.error.sizeMismatch', { actual: total, expected: entry.s }));
+	}
 
 	const out = new Uint8Array(total);
 	let offset = 0;
@@ -370,7 +394,9 @@ async function writeFromRemote(
 			const previous = await ctx.options.vault.read(path);
 			await ctx.options.beforeOverwrite(path, previous);
 		} catch (error) {
-			ctx.summary.warnings.push(`${path}: 历史快照失败 (${errorMessage(error)})`);
+			ctx.summary.warnings.push(
+				t('engine.warn.snapshotFailed', { path, error: errorMessage(error) }),
+			);
 		}
 	}
 	await ctx.options.vault.write(path, bytes);
@@ -393,7 +419,7 @@ async function writeFromRemote(
 async function uploadFile(ctx: EngineContext, path: string): Promise<void> {
 	const scanned = ctx.local.get(path) ?? null;
 	const stats = await ctx.options.vault.stat(path);
-	if (!stats) throw new Error(`文件已消失: ${path}`);
+	if (!stats) throw new Error(t('engine.error.fileGone', { path }));
 
 	// Reuse bytes read during the scan only if the file has not changed since.
 	const carried =
@@ -480,7 +506,7 @@ async function preserveCopy(
 	await ctx.options.vault.write(copyPath, bytes);
 	ctx.summary.conflicts++;
 	ctx.summary.conflictPaths.push(copyPath);
-	ctx.log(`冲突：${path} 的另一版本已保存为 ${copyPath}`, 'warn');
+	ctx.log(t('engine.log.conflictCopy', { path, copy: copyPath }), 'warn');
 	return copyPath;
 }
 
@@ -539,22 +565,23 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 	await scanLocal(ctx);
 
 	// 3. Plan.
-	ctx.progress('plan', 0, 1, '比较本地与远端');
+	ctx.progress('plan', 0, 1, t('engine.phase.plan'));
 	const actions = planActions(ctx);
 	const count = (kind: Action['kind']) => actions.filter((a) => a.kind === kind).length;
 	const destructive = count('delete-local') + count('delete-remote');
 	ctx.log(
-		`计划：上传 ${count('upload')}，下载 ${count('download')}，` +
-			`删除 ${destructive}，冲突 ${count('conflict-local') + count('conflict-remote')}`,
+		t('engine.log.plan', {
+			upload: count('upload'),
+			download: count('download'),
+			delete: destructive,
+			conflicts: count('conflict-local') + count('conflict-remote'),
+		}),
 	);
 
 	if (destructive > 0 && !options.allowMassDelete) {
 		const tracked = Object.keys(ctx.state.files).length;
 		if (destructive > 5 && destructive > Math.max(10, tracked * 0.25)) {
-			throw new Error(
-				`本次将删除 ${destructive} 个文件（超过 25%），已中止以避免误删。` +
-					'确认无误后可在设置中临时开启“允许批量删除”。',
-			);
+			throw new Error(t('engine.error.massDelete', { count: destructive }));
 		}
 	}
 
@@ -567,13 +594,15 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 				const previous = await ctx.options.vault.read(action.path).catch(() => null);
 				await ctx.options.beforeDelete(action.path, previous);
 			} catch (error) {
-				ctx.summary.warnings.push(`${action.path}: 历史快照失败 (${errorMessage(error)})`);
+				ctx.summary.warnings.push(
+					t('engine.warn.snapshotFailed', { path: action.path, error: errorMessage(error) }),
+				);
 			}
 		}
 		await ctx.options.vault.remove(action.path);
 		delete ctx.state.files[action.path];
 		ctx.summary.deletedLocal++;
-		ctx.log(`删除本地 ${action.path}`);
+		ctx.log(t('engine.log.deleteLocal', { path: action.path }));
 	}
 
 	// 5. Downloads.
@@ -581,14 +610,16 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 		(a): a is Extract<Action, { kind: 'download' }> => a.kind === 'download',
 	);
 	let downloaded = 0;
-	if (downloads.length > 0) ctx.progress('download', 0, downloads.length, '准备下载');
+	if (downloads.length > 0) {
+		ctx.progress('download', 0, downloads.length, t('engine.progress.preparingDownload'));
+	}
 	for (const action of downloads) {
 		assertNotAborted(ctx.signal);
 		await ensureChunks(ctx, action.path, action.entry);
 		await writeFromRemote(ctx, action.path, action.entry);
 		downloaded++;
 		ctx.progress('download', downloaded, downloads.length, action.path);
-		ctx.log(`下载 ${action.path}（${action.reason}）`);
+		ctx.log(t('engine.log.download', { path: action.path, reason: action.reason }));
 	}
 
 	// 6. Conflicts.
@@ -600,7 +631,7 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 			const remoteBytes = await assemble(ctx, action.entry);
 			const copyPath = await preserveCopy(ctx, action.path, remoteBytes, taken);
 			ctx.summary.naiveBytes += remoteBytes.length;
-			ctx.log(`${action.path}: 冲突，保留本地版本`, 'warn');
+			ctx.log(t('engine.log.conflictKeepLocal', { path: action.path }), 'warn');
 			pendingUploads.add(action.path);
 			if (copyPath) {
 				// The preserved remote version still has to reach the remote.
@@ -622,7 +653,7 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 			await ensureChunks(ctx, action.path, action.entry);
 			await writeFromRemote(ctx, action.path, action.entry);
 			ctx.summary.naiveBytes += localBytes.length;
-			ctx.log(`${action.path}: 冲突，采用远端较新版本`, 'warn');
+			ctx.log(t('engine.log.conflictTakeRemote', { path: action.path }), 'warn');
 			if (copyPath) {
 				ctx.local.set(copyPath, {
 					path: copyPath,
@@ -651,7 +682,7 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 			uploaded++;
 			ctx.progress('upload', uploaded, uploadList.length, path);
 		} catch (error) {
-			const message = `上传失败 ${path}: ${errorMessage(error)}`;
+			const message = t('engine.error.uploadFailed', { path, error: errorMessage(error) });
 			ctx.summary.errors.push(message);
 			ctx.log(message, 'error');
 		}
@@ -664,11 +695,11 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 			delete ctx.state.files[action.path];
 			ctx.touched.add(action.path);
 			ctx.summary.deletedRemote++;
-			ctx.log(`删除远端 ${action.path}`);
+			ctx.log(t('engine.log.deleteRemote', { path: action.path }));
 		} else if (action.kind === 'untrack-remote') {
 			delete ctx.index.files[action.path];
 			ctx.touched.add(action.path);
-			ctx.log(`不再同步已排除的路径 ${action.path}`);
+			ctx.log(t('engine.log.untracked', { path: action.path }));
 		}
 	}
 
@@ -676,13 +707,13 @@ export async function runSync(store: RemoteStore, options: SyncEngineOptions): P
 	ctx.summary.chunksDownloaded = ctx.fetchedChunks;
 	ctx.summary.bytesDownloaded = ctx.fetchedBytes;
 	if (ctx.touched.size > 0 || ctx.uploadedChunkIds.size > 0) {
-		ctx.progress('finalize', 0, 1, '写入远端索引');
+		ctx.progress('finalize', 0, 1, t('engine.phase.finalize'));
 		await saveIndex(ctx);
 	}
 
 	// 10. Garbage collection.
 	if (options.collectGarbage !== false) {
-		ctx.progress('gc', 0, 1, '清理无用分块');
+		ctx.progress('gc', 0, 1, t('engine.phase.gc'));
 		await collectGarbage(ctx);
 	}
 
@@ -708,7 +739,7 @@ async function collectGarbage(ctx: EngineContext): Promise<void> {
 			await saveIndex(ctx);
 		}
 	} catch (error) {
-		ctx.summary.warnings.push(`清理分块失败: ${errorMessage(error)}`);
+		ctx.summary.warnings.push(t('engine.warn.gcFailed', { error: errorMessage(error) }));
 	}
 }
 
@@ -792,11 +823,11 @@ async function saveIndex(ctx: EngineContext): Promise<void> {
 			// atomic two writers can both succeed. Confirm our entries actually
 			// landed; otherwise merge again.
 			if (await verifyTouched(ctx)) return;
-			ctx.log('远端索引写入被并发覆盖，正在重新合并', 'warn');
+			ctx.log(t('engine.log.indexOverwritten'), 'warn');
 			continue;
 		}
-		ctx.log('远端索引写入冲突，正在重试', 'warn');
+		ctx.log(t('engine.log.indexConflictRetry'), 'warn');
 	}
 
-	throw new Error('远端索引写入冲突次数过多，请稍后重试');
+	throw new Error(t('engine.error.indexConflictTooMany'));
 }

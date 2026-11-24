@@ -16,7 +16,7 @@ Diff Sync (WebDAV) synchronizes an Obsidian vault across desktop devices through
 2. Put the files in the `plugins/diff-sync-webdav/` folder under your vault's Obsidian configuration directory. The default location is `.obsidian/plugins/diff-sync-webdav/`.
 3. Enable **Diff Sync (WebDAV)** in Obsidian's Community plugins settings.
 4. Enter the full WebDAV collection URL, user name, password or app password, and remote subdirectory. Use the connection test to verify that the plugin can read and write to the server.
-5. Open the sync panel and start a sync. The panel shows progress, transfer counts, conflicts, and errors. The plugin interface is currently in Simplified Chinese.
+5. Open the sync panel and start a sync. The panel shows progress, transfer counts, conflicts, and errors. The interface follows Obsidian's language: English by default and Simplified Chinese when Obsidian is set to Chinese.
 
 ## How sync works
 

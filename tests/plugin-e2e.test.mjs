@@ -116,6 +116,7 @@ const obsidianStub = {
 		}
 	},
 	Platform: { isWin: process.platform === 'win32', isMacOS: process.platform === 'darwin', isLinux: process.platform === 'linux' },
+	getLanguage: () => 'en',
 	normalizePath: (p) => p.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+|\/+$/g, ''),
 	requestUrl: async (request) => {
 		const response = await fetch(request.url, {

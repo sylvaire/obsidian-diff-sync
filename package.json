@@ -1,6 +1,6 @@
 {
   "name": "obsidian-diff-sync",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Content-defined-chunk differential sync for Obsidian over WebDAV",
   "main": "main.js",
   "type": "module",
@@ -9,7 +9,7 @@
     "build": "npm run typecheck && node esbuild.config.mjs",
     "build:test": "node esbuild.config.mjs --test",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node tests/run-tests.mjs && node tests/plugin-load.test.mjs && node tests/sync-panel.test.mjs && node tests/plugin-e2e.test.mjs"
+    "test": "npm run build && node tests/run-tests.mjs && node tests/i18n.test.mjs && node tests/plugin-load.test.mjs && node tests/sync-panel.test.mjs && node tests/plugin-e2e.test.mjs"
   },
   "keywords": [
     "obsidian",

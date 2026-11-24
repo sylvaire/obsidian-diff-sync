@@ -4,6 +4,7 @@ export * from './crypto';
 export * from './engine';
 export * from './glob';
 export * from './hash';
+export * from './i18n';
 export * from './manifest';
 export * from './paths';
 export * from './remote';

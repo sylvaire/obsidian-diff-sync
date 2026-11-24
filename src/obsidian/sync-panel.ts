@@ -1,4 +1,5 @@
 import { ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
+import { t } from '../core/i18n';
 import { formatBytes, formatDuration } from './naming';
 import type DiffSyncPlugin from './main';
 import type { SyncResult } from '../core/engine';
@@ -48,7 +49,7 @@ export class SyncPanelView extends ItemView {
 
 		const heading = root.createDiv({ cls: 'diff-sync-panel__heading' });
 		setIcon(heading.createSpan({ cls: 'diff-sync-panel__icon' }), 'refresh-cw');
-		heading.createSpan({ text: '差分同步' });
+		heading.createSpan({ text: t('panel.heading') });
 
 		const buttonRow = root.createDiv({ cls: 'diff-sync-panel__actions' });
 
@@ -56,13 +57,13 @@ export class SyncPanelView extends ItemView {
 			cls: 'mod-cta diff-sync-panel__sync',
 		});
 		setIcon(this.syncButton.createSpan({ cls: 'diff-sync-panel__btn-icon' }), 'play');
-		this.syncButton.createSpan({ text: '立即同步' });
+		this.syncButton.createSpan({ text: t('command.syncNow') });
 		this.syncButton.addEventListener('click', () => void this.plugin.sync());
 
 		this.cancelButton = buttonRow.createEl('button', {
 			cls: 'diff-sync-panel__cancel',
 		});
-		this.cancelButton.setText('取消');
+		this.cancelButton.setText(t('common.cancel'));
 		this.cancelButton.addClass('is-hidden');
 		this.cancelButton.addEventListener('click', () => this.plugin.cancelSync());
 
@@ -76,7 +77,7 @@ export class SyncPanelView extends ItemView {
 		const footer = root.createDiv({ cls: 'diff-sync-panel__footer' });
 
 		const settingsButton = footer.createEl('button', { cls: 'diff-sync-panel__link' });
-		settingsButton.setText('设置');
+		settingsButton.setText(t('panel.settings'));
 		settingsButton.addEventListener('click', () => {
 			// Open this plugin's settings tab from the panel.
 			const app = this.app as unknown as {
@@ -87,7 +88,7 @@ export class SyncPanelView extends ItemView {
 		});
 
 		const logButton = footer.createEl('button', { cls: 'diff-sync-panel__link' });
-		logButton.setText('日志');
+		logButton.setText(t('panel.log'));
 		logButton.addEventListener('click', () => this.plugin.showLog());
 
 		this.hintEl = root.createDiv({ cls: 'diff-sync-panel__hint' });
@@ -107,7 +108,7 @@ export class SyncPanelView extends ItemView {
 	/** Called by the plugin when a sync starts or ends. */
 	setSyncing(syncing: boolean): void {
 		this.applyState(syncing);
-		if (syncing && this.statusLine) this.statusLine.setText('准备中…');
+		if (syncing && this.statusLine) this.statusLine.setText(t('status.preparing'));
 		if (!syncing) {
 			this.setProgress(0);
 			this.renderStats(this.plugin.lastSyncResult());
@@ -121,20 +122,18 @@ export class SyncPanelView extends ItemView {
 			this.syncButton.disabled = syncing || !configured;
 			this.syncButton.empty();
 			setIcon(this.syncButton.createSpan({ cls: 'diff-sync-panel__btn-icon' }), 'play');
-			this.syncButton.createSpan({ text: syncing ? '同步中…' : '立即同步' });
+			this.syncButton.createSpan({ text: syncing ? t('panel.syncing') : t('command.syncNow') });
 			this.syncButton.title = !configured
-				? '请先在设置中填写 WebDAV 服务器地址'
+				? t('notice.notConfigured')
 				: syncing
-					? '正在同步'
-					: '立即开始一次同步';
+					? t('panel.syncingTooltip')
+					: t('panel.syncTooltip');
 		}
 
 		this.cancelButton?.toggleClass('is-hidden', !syncing);
 
 		if (this.hintEl) {
-			this.hintEl.setText(
-				configured ? '' : '尚未配置 WebDAV：打开设置 → Diff Sync (WebDAV) 填写服务器地址与密码。',
-			);
+			this.hintEl.setText(configured ? '' : t('panel.notConfiguredHint'));
 			this.hintEl.toggleClass('is-hidden', configured);
 		}
 
@@ -161,25 +160,43 @@ export class SyncPanelView extends ItemView {
 		if (!result) {
 			this.statsEl.createDiv({
 				cls: 'diff-sync-panel__muted',
-				text: '尚无同步记录',
+				text: t('panel.noHistory'),
 			});
 			return;
 		}
 
 		const s = result.summary;
 		const rows: [string, string][] = [
-			['上传', `${s.uploadedFiles} 个 · ${formatBytes(s.bytesUploaded)}`],
-			['下载', `${s.downloadedFiles} 个 · ${formatBytes(s.bytesDownloaded)}`],
-			['删除', `${s.deletedLocal + s.deletedRemote} 个`],
-			['冲突', `${s.conflicts} 个`],
-			['耗时', formatDuration(s.durationMs)],
+			[
+				t('panel.label.upload'),
+				t('panel.value.files', {
+					count: s.uploadedFiles,
+					size: formatBytes(s.bytesUploaded),
+				}),
+			],
+			[
+				t('panel.label.download'),
+				t('panel.value.files', {
+					count: s.downloadedFiles,
+					size: formatBytes(s.bytesDownloaded),
+				}),
+			],
+			[
+				t('panel.label.delete'),
+				t('panel.value.count', { count: s.deletedLocal + s.deletedRemote }),
+			],
+			[t('panel.label.conflict'), t('panel.value.count', { count: s.conflicts })],
+			[t('panel.label.duration'), formatDuration(s.durationMs)],
 		];
 
 		const saved = s.naiveBytes - (s.bytesUploaded + s.bytesDownloaded);
 		if (s.naiveBytes > 0 && saved > 0) {
 			rows.push([
-				'差分节省',
-				`${formatBytes(saved)}（${Math.round((saved / s.naiveBytes) * 100)}%）`,
+				t('panel.label.saved'),
+				t('panel.value.saved', {
+					size: formatBytes(saved),
+					percent: Math.round((saved / s.naiveBytes) * 100),
+				}),
 			]);
 		}
 
@@ -192,7 +209,7 @@ export class SyncPanelView extends ItemView {
 
 		if (s.conflictPaths.length > 0) {
 			const conflicts = this.statsEl.createDiv({ cls: 'diff-sync-panel__conflicts' });
-			conflicts.createDiv({ cls: 'diff-sync-panel__label', text: '冲突副本' });
+			conflicts.createDiv({ cls: 'diff-sync-panel__label', text: t('panel.conflicts') });
 			for (const path of s.conflictPaths.slice(0, 5)) {
 				conflicts.createDiv({ cls: 'diff-sync-panel__conflict-item', text: path });
 			}
@@ -200,7 +217,7 @@ export class SyncPanelView extends ItemView {
 
 		if (s.errors.length > 0) {
 			const errors = this.statsEl.createDiv({ cls: 'diff-sync-panel__errors' });
-			errors.createDiv({ cls: 'diff-sync-panel__label', text: '错误' });
+			errors.createDiv({ cls: 'diff-sync-panel__label', text: t('panel.errors') });
 			for (const error of s.errors.slice(0, 3)) {
 				errors.createDiv({ cls: 'diff-sync-panel__error-item', text: error });
 			}
@@ -210,12 +227,12 @@ export class SyncPanelView extends ItemView {
 	/** Progress text shown while syncing, derived from an engine phase update. */
 	updateFromProgress(progress: SyncProgress): void {
 		const labels: Record<SyncProgress['phase'], string> = {
-			scan: '扫描本地文件',
-			plan: '比较本地与远端',
-			download: '下载差异分块',
-			upload: '上传差异分块',
-			finalize: '写入远端索引',
-			gc: '清理无用分块',
+			scan: t('panel.phase.scan'),
+			plan: t('panel.phase.plan'),
+			download: t('panel.phase.download'),
+			upload: t('panel.phase.upload'),
+			finalize: t('panel.phase.finalize'),
+			gc: t('panel.phase.gc'),
 		};
 		this.setStatus(labels[progress.phase], progress.detail ?? '');
 		if (progress.total > 0) {

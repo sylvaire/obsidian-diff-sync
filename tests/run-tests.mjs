@@ -39,7 +39,12 @@ import {
 	extensionOf,
 	sanitizeSegment,
 	PathFilter as PF,
+	setLocale,
 } from './.build/core.mjs';
+
+// These tests assert the Chinese message text; the plugin itself defaults to
+// English and switches catalogs from the Obsidian language.
+setLocale('zh');
 
 // ---------------------------------------------------------------- mini runner
 

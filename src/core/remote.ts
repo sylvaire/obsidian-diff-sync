@@ -1,5 +1,6 @@
 import { utf8Decode, utf8Encode } from './bytes';
 import { seal, open } from './crypto';
+import { t } from './i18n';
 import { parseIndex, RemoteIndex, serializeIndex } from './manifest';
 import { WebDavClient } from './webdav';
 
@@ -28,8 +29,10 @@ export class VaultMismatchError extends Error {
 		readonly localVaultId: string,
 	) {
 		super(
-			`远端与本地属于不同的库（远端 ${remoteVaultId} / 本地 ${localVaultId}）。` +
-				'请换一个远端目录，或清空本地同步状态重新开始。',
+			t('error.vaultMismatch', {
+				remote: remoteVaultId,
+				local: localVaultId,
+			}),
 		);
 		this.name = 'VaultMismatchError';
 	}
@@ -119,14 +122,14 @@ export class RemoteStore {
 			try {
 				payload = await open(this.key, result.body, 'index');
 			} catch {
-				throw new Error('远端索引解密失败：口令与远端加密配置不匹配');
+				throw new Error(t('error.indexDecryptFailed'));
 			}
 		}
 
 		const index = parseIndex(utf8Decode(payload));
-		if (!index) throw new Error('远端索引格式无法识别（可能来自更新版本的插件）');
+		if (!index) throw new Error(t('error.indexFormat'));
 		if (index.vaultId !== this.meta.vaultId) {
-			throw new Error('远端索引与 meta.json 的库标识不一致，远端目录已损坏');
+			throw new Error(t('error.indexVaultIdMismatch'));
 		}
 		return { index, etag: result.etag };
 	}
@@ -163,7 +166,7 @@ export class RemoteStore {
 		// Collections are sharded by id prefix to keep directory listings sane.
 		await this.client.ensureCollection(this.client.urlFor(CHUNK_DIR, id.slice(0, 2)));
 		const result = await this.client.put(this.chunkUrl(id), body);
-		if (!result.ok) throw new Error(`上传分块失败: ${id}`);
+		if (!result.ok) throw new Error(t('error.chunkUploadFailed', { id }));
 	}
 
 	async deleteChunk(id: string): Promise<void> {

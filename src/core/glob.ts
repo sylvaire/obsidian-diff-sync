@@ -62,7 +62,6 @@ export class PathFilter {
 }
 
 export const DEFAULT_EXCLUDE_PATTERNS: readonly string[] = [
-	'# 一行一个 glob，** 表示任意层级',
 	'.trash/**',
 	'.git/**',
 	'**/.DS_Store',
