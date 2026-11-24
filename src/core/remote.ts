@@ -2,7 +2,7 @@ import { utf8Decode, utf8Encode } from './bytes';
 import { seal, open } from './crypto';
 import { t } from './i18n';
 import { parseIndex, RemoteIndex, serializeIndex } from './manifest';
-import { WebDavClient } from './webdav';
+import { WebDavClient, WebDavError } from './webdav';
 
 export const META_FILE = 'meta.json';
 export const PLAIN_INDEX_FILE = 'index.json';
@@ -164,8 +164,18 @@ export class RemoteStore {
 	async putChunk(id: string, plaintext: Uint8Array): Promise<void> {
 		const body = this.key ? await seal(this.key, plaintext, id) : plaintext;
 		// Collections are sharded by id prefix to keep directory listings sane.
-		await this.client.ensureCollection(this.client.urlFor(CHUNK_DIR, id.slice(0, 2)));
-		const result = await this.client.put(this.chunkUrl(id), body);
+		const shard = this.client.urlFor(CHUNK_DIR, id.slice(0, 2));
+		await this.client.ensureCollection(shard);
+		let result: { ok: boolean; created: boolean };
+		try {
+			result = await this.client.put(this.chunkUrl(id), body);
+		} catch (error) {
+			// A cached shard can disappear if the remote is edited externally.
+			// Re-probe the whole chain once before giving up.
+			if (!(error instanceof WebDavError) || error.status !== 409) throw error;
+			await this.client.ensureCollection(shard, true);
+			result = await this.client.put(this.chunkUrl(id), body);
+		}
 		if (!result.ok) throw new Error(t('error.chunkUploadFailed', { id }));
 	}
 

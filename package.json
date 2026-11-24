@@ -1,6 +1,6 @@
 {
   "name": "obsidian-diff-sync",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Content-defined-chunk differential sync for Obsidian over WebDAV",
   "main": "main.js",
   "type": "module",

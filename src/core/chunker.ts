@@ -75,6 +75,11 @@ export function chunkSpans(bytes: Uint8Array, config: ChunkerConfig = DEFAULT_CH
 	const max = Math.max(min, Math.min(config.maxSize, n));
 	const avg = Math.max(min, config.avgSize);
 
+	// Small files stay in one piece. Every chunk costs its own WebDAV request,
+	// so splitting a 2 KB note into seven sub-KB chunks made first sync an
+	// order of magnitude slower for no meaningful edit-locality gain.
+	if (n <= avg) return [{ start: 0, end: n }];
+
 	if (!looksLikeText(bytes, n)) {
 		const cdc = contentDefinedSpans(bytes, n, min, max, avg);
 		return isDegenerate(cdc, n, max) ? fixedSpans(n, avg) : cdc;

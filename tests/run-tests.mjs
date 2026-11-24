@@ -40,6 +40,7 @@ import {
 	sanitizeSegment,
 	PathFilter as PF,
 	setLocale,
+	DEFAULT_CHUNKER,
 } from './.build/core.mjs';
 
 // These tests assert the Chinese message text; the plugin itself defaults to
@@ -219,6 +220,15 @@ test('chunker: spans cover the file exactly', async () => {
 	}
 });
 
+test('chunker: files up to the average size stay in one chunk', async () => {
+	const small = utf8Encode('x'.repeat(DEFAULT_CHUNKER.avgSize));
+	assert.deepEqual(chunkSpans(small, DEFAULT_CHUNKER), [
+		{ start: 0, end: small.length },
+	]);
+	const large = utf8Encode(randomText(DEFAULT_CHUNKER.avgSize + 100_000, 21));
+	assert.ok(chunkSpans(large, DEFAULT_CHUNKER).length > 1);
+});
+
 test('chunker: is deterministic and edit-local (few chunks change)', async () => {
 	const original = randomText(200_000, 7);
 	const a = await chunkBytes(utf8Encode(original));
@@ -324,6 +334,50 @@ test('crypto: seal/open round-trip, wrong key fails', async () => {
 
 	// Associated data must be bound.
 	await assert.rejects(() => open(key, sealed, 'chunk-2'));
+});
+
+test('webdav: chunk uploads probe each collection once', async () => {
+	let propfinds = 0;
+	let puts = 0;
+	const transport = async (request) => {
+		if (request.method === 'PROPFIND') {
+			propfinds++;
+			return { status: 207, headers: {}, bytes: new Uint8Array(0) };
+		}
+		if (request.method === 'PUT') {
+			puts++;
+			return { status: 201, headers: {}, bytes: new Uint8Array(0) };
+		}
+		return { status: 200, headers: {}, bytes: new Uint8Array(0) };
+	};
+	const client = new WebDavClient(
+		{
+			baseUrl: 'https://dav.example.com/dav/notes',
+			username: 'u',
+			password: 'p',
+			rootDir: 'diff-sync',
+			minRequestIntervalMs: 0,
+		},
+		transport,
+	);
+	const store = new RemoteStore({
+		client,
+		meta: { v: 1, vaultId: 'v1', encrypted: false },
+		key: null,
+		concurrency: 2,
+	});
+	const id = (prefix, fill) => prefix + fill.repeat(30);
+
+	await store.putChunk(id('aa', '0'), new Uint8Array([1]));
+	await store.putChunk(id('aa', '1'), new Uint8Array([2]));
+	// Same shard: the five parent levels are probed once, then only PUTs.
+	assert.equal(propfinds, 5);
+	assert.equal(puts, 2);
+
+	// A new shard only probes its own directory.
+	await store.putChunk(id('ab', '2'), new Uint8Array([3]));
+	assert.equal(propfinds, 6);
+	assert.equal(puts, 3);
 });
 
 // ------------------------------------------------------------ sync scenarios

@@ -20,7 +20,7 @@ Diff Sync (WebDAV) synchronizes an Obsidian vault across desktop devices through
 
 ## How sync works
 
-- The first sync to an empty remote uploads the files in scope. Subsequent syncs reuse chunks already present on the receiving side.
+- The first sync to an empty remote uploads the files in scope. Each chunk is a single PUT, remote directories are probed once per sync, and files up to the average chunk size are stored as a single chunk, keeping the initial request count low. Subsequent syncs reuse chunks already present on the receiving side.
 - In **Advanced**, the conflict policy selects which version keeps the original filename. The default uses modification time. The size policy prefers the larger file and uses modification time when sizes match. The other version is kept as a conflict copy.
 - The plugin syncs in both directions, including deletions. A mass-deletion guard can stop a sync before applying a large deletion.
 - The active Obsidian configuration directory and local history folder are excluded. You can add your own exclusions using glob patterns.

@@ -83,6 +83,12 @@ export class WebDavClient {
 	 * request count, not bytes, so pacing matters more than concurrency.
 	 */
 	private nextSlot = 0;
+	/**
+	 * Collections this client has already confirmed. First sync uploads a chunk
+	 * per PUT; probing the whole parent chain for every chunk multiplied the
+	 * request count (and rate-limit pressure) by six.
+	 */
+	private readonly knownCollections = new Set<string>();
 
 	constructor(
 		private readonly config: WebDavConfig,
@@ -321,7 +327,7 @@ export class WebDavClient {
 	 * configured directory itself may not exist yet (a fresh Jianguoyun folder is
 	 * exactly this case), and MKCOL there returns 409 "parent missing".
 	 */
-	async ensureCollection(collectionUrl: string): Promise<void> {
+	async ensureCollection(collectionUrl: string, force = false): Promise<void> {
 		const base = this.config.baseUrl.trim().replace(/\/+$/, '');
 		if (!collectionUrl.startsWith(base)) {
 			throw new Error(t('error.collectionOutsideBase', { url: collectionUrl, base }));
@@ -341,11 +347,16 @@ export class WebDavClient {
 		let current = url.origin;
 		for (const segment of segments) {
 			current = `${current}/${encodePathSegment(segment)}`;
+			if (!force && this.knownCollections.has(current)) continue;
 			// Probe first: Jianguoyun answers a repeated MKCOL on an existing
 			// collection with 503 and starts rate-limiting. Only create what is
-			// actually missing.
-			if (await this.exists(current)) continue;
+			// actually missing. The cache skips this probe once per collection.
+			if (await this.exists(current)) {
+				this.knownCollections.add(current);
+				continue;
+			}
 			await this.mkcol(current);
+			this.knownCollections.add(current);
 		}
 	}
 
